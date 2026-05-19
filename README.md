@@ -36,14 +36,28 @@ your-vault/
 
 ### 2. プラグインをインストール
 
-`.obsidian/plugins/kanban-obsidian/` を vault 内に作り、リリースの `main.js` / `manifest.json` / `styles.css` を配置します。
+#### 方法 A: BRAT で自動化（推奨）
+
+[BRAT](https://github.com/TfTHacker/obsidian42-brat) は Obsidian の β プラグインを GitHub repo から直接インストール / 自動更新するためのプラグインです。
+
+1. Obsidian の `Settings → Community plugins → Browse` で **Obsidian42 - BRAT** を検索してインストール、有効化
+2. コマンドパレットで `BRAT: Plugins: Add a beta plugin for testing` を実行
+3. 表示されたダイアログに以下を貼り付け、`Add Plugin`:
+   ```
+   soraclock/kanban-obsidian-plugin
+   ```
+4. インストールが終わったら `Settings → Community plugins → Installed plugins` で **Kanban Task Board** を ON
+
+以降、BRAT が自動で更新をチェックします。
+
+#### 方法 B: 手動配置
+
+GitHub Release ページから `main.js` / `manifest.json` / `styles.css` を DL し、vault 内の `.obsidian/plugins/kanban-obsidian/` に置きます。
 
 ```bash
 mkdir -p your-vault/.obsidian/plugins/kanban-obsidian
-# GitHub Release から main.js / manifest.json / styles.css を DL してここに置く
+# Release から 3 ファイルを DL して上のディレクトリに置く
 ```
-
-[BRAT](https://github.com/TfTHacker/obsidian42-brat) を使えば自動配置 + 自動更新できます（推奨）。
 
 ### 3. 有効化
 
