@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Platform } from "obsidian";
 import { useBoardStore, type DueFilter, type LayoutMode } from "../../store/boardStore";
 import { PRIORITY_VALUES, STATUS_VALUES, type Priority, type Status } from "../../data/TaskSchema";
 import { collectAllTags } from "../../data/TaskFilter";
@@ -94,8 +95,90 @@ export function FilterBar() {
     filter.due !== null ||
     filter.searchQuery.trim() !== "";
 
+  // モバイル UI: FilterBar が画面を専有する問題を解消するため、デフォルト折りたたみ。
+  // 「☰ フィルタ」ボタン + レイアウト select + 表示モード切替 の 1 行ヘッダーだけ常時表示。
+  // タップで全画面オーバーレイ展開して全項目を編集できる。
+  const isMobile = Platform.isMobile;
+  const [mobileExpanded, setMobileExpanded] = React.useState(false);
+  const appliedCount =
+    filter.priorities.length +
+    filter.statuses.length +
+    filter.tags.length +
+    (filter.due !== null ? 1 : 0) +
+    (filter.searchQuery.trim() !== "" ? 1 : 0);
+
+  // モバイル + 折りたたみ: コンパクトな 1 行ヘッダーだけ表示
+  if (isMobile && !mobileExpanded) {
+    return (
+      <div
+        className="kanban-filterbar kanban-filterbar--mobile-collapsed"
+        role="region"
+        aria-label="フィルタと検索（折りたたみ中）"
+      >
+        <button
+          type="button"
+          className="kanban-mobile-filter-trigger"
+          onClick={() => setMobileExpanded(true)}
+          aria-label="フィルタを展開"
+        >
+          <span className="kanban-mobile-filter-trigger-icon">☰</span>
+          <span>フィルタ</span>
+          {appliedCount > 0 && (
+            <span className="kanban-mobile-filter-badge">{appliedCount}</span>
+          )}
+        </button>
+        <select
+          className="kanban-mobile-layout-select"
+          value={layoutMode}
+          onChange={(e) => setLayoutMode(e.target.value as LayoutMode)}
+          aria-label="レイアウト切替"
+        >
+          {LAYOUT_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className={`kanban-viewmode-toggle ${viewMode === "compact" ? "is-compact" : ""}`}
+          onClick={() => setViewMode(viewMode === "compact" ? "detailed" : "compact")}
+          aria-label="表示モード切替"
+        >
+          {viewMode === "compact" ? "簡略" : "詳細"}
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="kanban-filterbar" role="region" aria-label="フィルタと検索">
+    <div
+      className={`kanban-filterbar ${isMobile ? "kanban-filterbar--mobile-expanded" : ""}`}
+      role="region"
+      aria-label="フィルタと検索"
+    >
+      {isMobile && (
+        <div className="kanban-mobile-filter-header">
+          <button
+            type="button"
+            className="kanban-mobile-filter-close"
+            onClick={() => setMobileExpanded(false)}
+            aria-label="フィルタを閉じる"
+          >
+            ← 閉じる
+          </button>
+          <span className="kanban-mobile-filter-header-title">フィルタ</span>
+          {hasAny && (
+            <button
+              type="button"
+              className="kanban-filter-reset"
+              onClick={resetFilter}
+            >
+              クリア
+            </button>
+          )}
+        </div>
+      )}
       <div className="kanban-filterbar-group">
         <span className="kanban-filterbar-label">ステータス</span>
         {ACTIVE_STATUSES.map((s) => {

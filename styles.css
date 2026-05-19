@@ -2039,19 +2039,144 @@
 
   /* レイアウト切替トグル: 5 ボタン（ボード / リスト / フォーカス / カレンダー / 統計）が
      横幅に収まりきらず overflow: hidden で右側ボタンが見切れる問題への対応。
-     mobile では 2 行に折り返して全部見える状態にする。 */
-  .kanban-root .kanban-layout-toggle {
+     mobile expanded 時は 2 行に折り返して全部見える状態にする。
+     collapsed 時は select dropdown に置き換わるので影響なし。 */
+  .kanban-root .kanban-filterbar--mobile-expanded .kanban-layout-toggle {
     flex-wrap: wrap;
     border-radius: 6px;
     overflow: visible;
   }
-  .kanban-root .kanban-layout-toggle-btn {
+  .kanban-root .kanban-filterbar--mobile-expanded .kanban-layout-toggle-btn {
     border-radius: 4px;
     border: 1px solid var(--background-modifier-border);
     margin: 2px;
   }
-  .kanban-root .kanban-layout-toggle-btn:first-child {
-    border-right: 1px solid var(--background-modifier-border);
+}
+
+/* --- モバイル FilterBar: 折りたたみ + 全画面展開 --- */
+/* デフォルト（folded）は 1 行ヘッダーだけ表示。展開時は全画面 modal。 */
+
+.kanban-root .kanban-filterbar--mobile-collapsed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  flex-wrap: nowrap;
+}
+
+.kanban-root .kanban-mobile-filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background-color: var(--interactive-normal);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+  min-height: 32px;
+}
+.kanban-root .kanban-mobile-filter-trigger:hover {
+  background-color: var(--interactive-hover);
+}
+.kanban-root .kanban-mobile-filter-trigger-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.kanban-root .kanban-mobile-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.kanban-root .kanban-mobile-layout-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 8px;
+  background-color: var(--interactive-normal);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  font-size: var(--font-ui-small);
+  min-height: 32px;
+}
+
+.kanban-root .kanban-filterbar--mobile-expanded {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  background-color: var(--background-primary);
+  overflow-y: auto;
+  padding-top: env(safe-area-inset-top, 0);
+  padding-bottom: env(safe-area-inset-bottom, 64px);
+  padding-left: env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+}
+
+.kanban-root .kanban-mobile-filter-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  position: sticky;
+  top: 0;
+  background-color: var(--background-primary);
+  z-index: 1;
+}
+.kanban-root .kanban-mobile-filter-close {
+  background: transparent;
+  border: none;
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 4px;
+  min-height: 36px;
+}
+.kanban-root .kanban-mobile-filter-close:hover {
+  background-color: var(--background-modifier-hover);
+}
+.kanban-root .kanban-mobile-filter-header-title {
+  flex: 1;
+  font-weight: 600;
+  font-size: var(--font-ui-medium);
+}
+
+/* mobile-expanded 内では filterbar-group を 1 つずつ縦に並べる */
+.kanban-root .kanban-filterbar--mobile-expanded .kanban-filterbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  align-items: center;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.kanban-root .kanban-filterbar--mobile-expanded .kanban-filterbar-label {
+  min-width: 60px;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+@media (max-width: 720px) {
+  /* 共通の touch target サイズはこちらに残す（先頭ブロック分） */
+  .kanban-root .kanban-filterbar--mobile-expanded .kanban-filter-chip {
+    min-height: 32px;
+    padding: 6px 12px;
   }
 
   /* ViewTabs: 4 タブを画面幅に収める */
