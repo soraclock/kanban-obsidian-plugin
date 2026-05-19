@@ -43,16 +43,23 @@
 }
 .kanban-root .kanban-warning-banner-toggle {
   background: transparent;
-  color: var(--text-error);
+  /* var(--text-error) は赤系 banner と同化して見えなくなる端末があるので、
+     白系（on-accent）を直接当てる。dark / light どちらでも読める */
+  color: var(--text-on-accent, #fff);
   border: none;
-  padding: 4px 0;
+  padding: 6px 0;
   font: inherit;
+  font-weight: 500;
   cursor: pointer;
   text-align: left;
   width: 100%;
 }
+.kanban-root .kanban-warning-banner-toggle strong {
+  color: inherit;
+}
 .kanban-root .kanban-warning-banner--collapsible ul {
   margin: 4px 0 6px 18px;
+  color: var(--text-on-accent, #fff);
 }
 
 .kanban-root .kanban-loading {
@@ -2028,6 +2035,23 @@
     flex: 1 1 100%;
     order: 99;
     min-width: 100%;
+  }
+
+  /* レイアウト切替トグル: 5 ボタン（ボード / リスト / フォーカス / カレンダー / 統計）が
+     横幅に収まりきらず overflow: hidden で右側ボタンが見切れる問題への対応。
+     mobile では 2 行に折り返して全部見える状態にする。 */
+  .kanban-root .kanban-layout-toggle {
+    flex-wrap: wrap;
+    border-radius: 6px;
+    overflow: visible;
+  }
+  .kanban-root .kanban-layout-toggle-btn {
+    border-radius: 4px;
+    border: 1px solid var(--background-modifier-border);
+    margin: 2px;
+  }
+  .kanban-root .kanban-layout-toggle-btn:first-child {
+    border-right: 1px solid var(--background-modifier-border);
   }
 
   /* ViewTabs: 4 タブを画面幅に収める */
