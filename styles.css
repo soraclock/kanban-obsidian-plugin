@@ -2307,30 +2307,31 @@
     padding: 6px;
   }
 
-  /* DetailPane のフィールド間隔が広すぎてスクロール量が増える問題への対応。
-     項目間 gap と padding を mobile では詰めて、1 画面に収まる情報量を増やす。 */
+  /* DetailPane のフィールド間隔を全体で均一化する。
+     - field-row の「縦に並べる」モードと form direct children で同じ gap (8px)
+     - 上のフィールド (ステータス〜完了日) と下のフィールド (モデル〜説明) で間隔差をなくす
+     - input[type="number"] にもスタイルを当てて Mobile デフォルト見た目を抑える */
   .kanban-root .kanban-detail-form {
-    gap: 2px;
-    padding: 4px 10px;
+    gap: 8px;
+    padding: 6px 10px;
   }
   .kanban-root .kanban-field {
-    gap: 0;
+    gap: 2px;
   }
   .kanban-root .kanban-field-label {
-    font-size: 10px;
+    font-size: 11px;
     line-height: 1.2;
-    margin-bottom: 1px;
   }
-  .kanban-root .kanban-field input[type="text"],
+  .kanban-root .kanban-field input,
   .kanban-root .kanban-field select,
-  .kanban-root .kanban-field textarea,
-  .kanban-root .kanban-field input[type="date"] {
-    padding: 6px 8px;
+  .kanban-root .kanban-field textarea {
+    padding: 7px 9px;
     font-size: 15px; /* iOS で 16px 未満だと拡大されるので 15 にしておく */
-    min-height: 32px;
+    min-height: 36px;
+    box-sizing: border-box;
   }
   .kanban-root .kanban-field-row {
-    gap: 4px;
+    gap: 8px;
     margin: 0;
   }
 
@@ -2372,12 +2373,12 @@
 @media (max-width: 480px) {
   /* iPhone 縦持ち: もう一段詰める */
   .kanban-root .kanban-detail-form {
-    padding: 2px 8px;
-    gap: 2px;
+    padding: 4px 8px;
+    gap: 8px;
   }
   .kanban-root .kanban-field-row {
     flex-direction: column;
-    gap: 2px;
+    gap: 8px; /* 上下フィールドの間隔を form direct children と揃える */
   }
   /* 統計 KPI を 1 列にしない (2 列維持で密度確保) */
   .kanban-root .kanban-stats-kpi-value {
