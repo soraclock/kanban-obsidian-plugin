@@ -2340,6 +2340,27 @@
     padding: 8px 14px;
     font-size: 14px;
   }
+
+  /* 完了タスク行: 「詳細」「未着手に戻す」ボタンが横並びでタイトル領域を
+     圧迫しタイトルが縦書きに近い折り返しになる問題への対応。
+     行全体を縦並びにして、タイトル → メタ → アクションの順で全幅利用する。 */
+  .kanban-root .kanban-completed-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .kanban-root .kanban-completed-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+  }
+  .kanban-root .kanban-completed-actions .kanban-subview-action {
+    width: 100%;
+    min-height: 36px;
+    padding: 8px;
+    font-size: 13px;
+  }
 }
 
 @media (max-width: 480px) {
