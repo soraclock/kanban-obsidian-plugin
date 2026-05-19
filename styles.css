@@ -2343,7 +2343,8 @@
     font-size: 11px;
     line-height: 1.2;
   }
-  .kanban-root .kanban-field input,
+  /* checkbox/radio は対象外（小さい四角を保ちたい）。それ以外の input は統一サイズ */
+  .kanban-root .kanban-field input:not([type="checkbox"]):not([type="radio"]),
   .kanban-root .kanban-field select,
   .kanban-root .kanban-field textarea {
     padding: 7px 9px;
