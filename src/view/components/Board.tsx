@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
 import type { App } from "obsidian";
-import { Notice } from "obsidian";
+import { Notice, Platform } from "obsidian";
 import {
   DndContext,
   DragOverlay,
@@ -253,8 +253,13 @@ export function Board({ app, ctx }: { app: App; ctx: PluginContext }) {
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      // 8px 移動で activate (誤発火・微震動を抑える)
-      activationConstraint: { distance: 8 },
+      // モバイル（タッチ）: 250ms 長押し + 8px 許容で activate。
+      //   指のスクロール（即発火 + 軸方向の動き）と長押しドラッグを区別するため。
+      //   tolerance を超えて動いた場合は activate せずスクロールとして扱われる。
+      // デスクトップ（マウス）: 8px 移動で activate（誤発火・微震動を抑える）。
+      activationConstraint: Platform.isMobile
+        ? { delay: 250, tolerance: 8 }
+        : { distance: 8 },
     }),
     // codex review (Critical) 反映: キーボード操作対応
     // ドラッグハンドル focus → Space で持ち上げ / 矢印で移動 / Space で drop / Esc で cancel
