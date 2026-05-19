@@ -34,11 +34,45 @@ export function parseFile<T = Record<string, unknown>>(input: string): Frontmatt
     return { data: {} as T, content: input };
   }
   try {
-    const data = (parseYaml(m[1]) ?? {}) as T;
+    const raw = parseYaml(m[1]) ?? {};
+    const data = normalizeDateValues(raw) as T;
     return { data, content: m[2] ?? "" };
   } catch {
     return { data: {} as T, content: m[2] ?? "" };
   }
+}
+
+/**
+ * parseYaml は YAML の `2026-05-12` のような date リテラルを Date オブジェクトに
+ * 変換する（js-yaml DEFAULT_SCHEMA の timestamp type）。gray-matter 時代は string
+ * のまま残っていたため、Task の Zod schema は string (YYYY-MM-DD) を期待している。
+ * このギャップを埋めるため、Date を YYYY-MM-DD 形式の string に戻す。
+ *
+ * UTC getter を使うのは、js-yaml が date-only literal を `Date.UTC(...)` で生成するため。
+ * ローカル getter を使うと TZ ずれで日付が前日になる可能性がある。
+ */
+function normalizeDateValues(data: unknown): unknown {
+  if (data === null || data === undefined) return data;
+  if (data instanceof Date) {
+    if (Number.isNaN(data.getTime())) return data;
+    const y = data.getUTCFullYear();
+    const m = String(data.getUTCMonth() + 1).padStart(2, "0");
+    const d = String(data.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  if (Array.isArray(data)) return data.map(normalizeDateValues);
+  if (typeof data === "object") {
+    // prototype pollution 対策: 通常の object literal だと `__proto__` キーの代入が
+    // 特別扱いされて prototype が書き換わり、その後 Object.keys で `__proto__` が
+    // 見えなくなる。`Object.create(null)` を使うと `__proto__` も普通の own property
+    // として保持されるため、危険キー検出（DANGEROUS_FRONTMATTER_KEYS）が引き続き機能する。
+    const result = Object.create(null) as Record<string, unknown>;
+    for (const k of Object.keys(data as Record<string, unknown>)) {
+      result[k] = normalizeDateValues((data as Record<string, unknown>)[k]);
+    }
+    return result;
+  }
+  return data;
 }
 
 /**
