@@ -1,0 +1,2129 @@
+/*
+ * Kanban Obsidian Plugin styles
+ * .kanban-root スコープ + Obsidian theme token でダーク/ライト両対応。
+ */
+
+.kanban-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-interface);
+  color: var(--text-normal);
+  background-color: var(--background-primary);
+}
+
+.kanban-root .kanban-root-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.kanban-root .kanban-warning-banner {
+  padding: 8px 12px;
+  background-color: var(--background-modifier-error);
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.kanban-root .kanban-warning-banner ul {
+  margin: 4px 0 0 18px;
+  padding: 0;
+}
+
+.kanban-root .kanban-loading {
+  padding: 16px;
+  color: var(--text-muted);
+}
+
+/* --- Phase 6 FilterBar (ボード上部スティッキー) --- */
+.kanban-root .kanban-filterbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary);
+  flex: 0 0 auto;
+}
+.kanban-root .kanban-filterbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.kanban-root .kanban-filterbar-label {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  margin-right: 2px;
+}
+.kanban-root .kanban-filter-chip {
+  padding: 2px 8px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 999px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.kanban-root .kanban-filter-chip:hover {
+  border-color: var(--interactive-accent);
+  color: var(--text-normal);
+}
+.kanban-root .kanban-filter-chip.is-active {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+.kanban-root .kanban-filter-chip-p0.is-active {
+  background-color: var(--color-red, #d32f2f);
+  border-color: var(--color-red, #d32f2f);
+}
+.kanban-root .kanban-filter-chip-p1.is-active {
+  background-color: var(--color-orange, #ef6c00);
+  border-color: var(--color-orange, #ef6c00);
+}
+.kanban-root .kanban-filter-chip-p2.is-active {
+  background-color: var(--color-yellow, #f9a825);
+  border-color: var(--color-yellow, #f9a825);
+  color: black;
+}
+.kanban-root .kanban-filter-chip-p3.is-active {
+  background-color: var(--color-green, #43a047);
+  border-color: var(--color-green, #43a047);
+}
+.kanban-root .kanban-filterbar-search {
+  margin-left: auto;
+  gap: 6px;
+}
+.kanban-root .kanban-filter-search-input {
+  padding: 4px 8px;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  min-width: 180px;
+}
+.kanban-root .kanban-filter-search-input:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+}
+.kanban-root .kanban-filter-reset {
+  padding: 4px 10px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  background-color: transparent;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.kanban-root .kanban-filter-reset:hover {
+  color: var(--text-normal);
+  border-color: var(--interactive-accent);
+}
+
+/* --- Phase 7 viewMode toggle --- */
+.kanban-root .kanban-viewmode-toggle {
+  padding: 4px 10px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.kanban-root .kanban-viewmode-toggle:hover {
+  border-color: var(--interactive-accent);
+  color: var(--text-normal);
+}
+.kanban-root .kanban-viewmode-toggle.is-compact {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+
+.kanban-root .kanban-archive-open {
+  padding: 4px 10px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.kanban-root .kanban-archive-open:hover {
+  border-color: var(--interactive-accent);
+  color: var(--text-normal);
+}
+
+/* --- Phase 7 compact card (タイトル + meta だけ) --- */
+.kanban-root .kanban-card-compact {
+  padding: 6px 10px;
+}
+.kanban-root .kanban-card-compact .kanban-card-title {
+  margin-bottom: 2px;
+}
+
+/* --- Phase 7 ArchiveView (kanban view 内のアーカイブビュー) --- */
+.kanban-root .kanban-archive-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 12px 16px 16px 16px;
+  gap: 12px;
+  overflow-y: auto;
+}
+.kanban-root .kanban-archive-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.kanban-root .kanban-archive-h2 {
+  margin: 0;
+  font-size: var(--font-ui-medium);
+  font-weight: 600;
+}
+.kanban-root .kanban-archive-back,
+.kanban-root .kanban-archive-back-board {
+  padding: 4px 10px;
+  font-size: var(--font-ui-small);
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.kanban-root .kanban-archive-back:hover,
+.kanban-root .kanban-archive-back-board:hover {
+  border-color: var(--interactive-accent);
+}
+.kanban-root .kanban-archive-back-board {
+  margin-left: auto;
+}
+.kanban-root .kanban-archive-empty {
+  color: var(--text-muted);
+  padding: 24px 0;
+  text-align: center;
+}
+
+/* 月一覧 (カード状にグリッド) */
+.kanban-root .kanban-archive-months {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+.kanban-root .kanban-archive-month-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 72px;
+  padding: 14px 16px;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: center;
+  font-family: inherit;
+}
+.kanban-root .kanban-archive-month-card:hover {
+  border-color: var(--interactive-accent);
+  background-color: var(--background-modifier-hover);
+}
+.kanban-root .kanban-archive-month-label {
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.kanban-root .kanban-archive-month-count {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 月内タスク一覧 */
+.kanban-root .kanban-archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.kanban-root .kanban-archive-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background-color: var(--background-secondary);
+}
+.kanban-root .kanban-archive-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.kanban-root .kanban-archive-title {
+  font-weight: 500;
+  color: var(--text-normal);
+  word-break: break-all;
+}
+.kanban-root .kanban-archive-meta {
+  display: flex;
+  gap: 10px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.kanban-root .kanban-archive-actions button {
+  padding: 4px 12px;
+  font-size: var(--font-ui-small);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* --- Board layout (左: kanban 列、右: DetailPane) --- */
+.kanban-root .kanban-board-layout {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+}
+
+/* --- Board (横並び 5 列) --- */
+.kanban-root .kanban-board {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  gap: 8px;
+  padding: 8px;
+  overflow-x: auto;
+}
+
+.kanban-root .kanban-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 240px;
+  /* max-width 撤廃: 画面幅が広い時に 5 列が flex で均等に伸びるように
+   * 花木 FB「凍結列の右に隙間が出る、狭くしたい」反映 */
+  flex: 1 1 0;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  overflow: hidden;
+  transition: background-color 100ms ease, border-color 100ms ease;
+}
+.kanban-root .kanban-column.kanban-column-over {
+  background-color: var(--background-modifier-hover);
+  border-color: var(--interactive-accent);
+}
+
+/* カード wrapper (DnD root activator)
+ * 花木 FB 反映: ハンドル撤去、wrapper 全体を Enter 単独で持ち上げ可能に
+ * - 通常クリックと drag は PointerSensor distance:8 で分離
+ * - focus-visible で青枠を出して keyboard 操作の視認性を確保
+ */
+.kanban-root .kanban-card-wrapper {
+  position: relative;
+  display: block;
+  cursor: grab;
+  border-radius: 4px;
+  outline: none;
+}
+.kanban-root .kanban-card-wrapper:focus-visible {
+  box-shadow: 0 0 0 2px var(--interactive-accent);
+}
+.kanban-root .kanban-card-wrapper:active {
+  cursor: grabbing;
+}
+
+.kanban-root .kanban-card {
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.kanban-root .kanban-column-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary-alt);
+}
+
+.kanban-root .kanban-column-title {
+  color: var(--text-normal);
+}
+.kanban-root .kanban-column-count {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  background-color: var(--background-primary);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.kanban-root .kanban-column-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 空列の placeholder。.kanban-card と同じ box model（border + padding）でベースラインを揃え、
+ * 中身を italic + center で「空」と分かるようにする */
+.kanban-root .kanban-empty-card {
+  border-style: dashed;
+  border-left-color: var(--background-modifier-border) !important;
+  color: var(--text-faint);
+  font-style: italic;
+  text-align: center;
+  cursor: default;
+  /* card hover の枠強調を打ち消す */
+}
+.kanban-root .kanban-empty-card:hover {
+  border-color: var(--background-modifier-border);
+}
+.kanban-root .kanban-empty-card.kanban-empty-over {
+  border-color: var(--interactive-accent);
+  background-color: var(--background-modifier-hover);
+}
+
+/* --- Card --- */
+.kanban-root .kanban-card {
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-left: 3px solid var(--text-muted);
+  border-radius: 4px;
+  padding: 8px 10px;
+  cursor: default;
+  transition: border-color 80ms ease;
+}
+.kanban-root .kanban-card:hover {
+  border-color: var(--interactive-accent);
+}
+
+.kanban-root .kanban-card-title {
+  font-weight: 500;
+  color: var(--text-normal);
+  word-break: break-word;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.kanban-root .kanban-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.kanban-root .kanban-badge {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+/* 優先度バッジ・左ボーダー色 */
+.kanban-root .kanban-priority-p0 {
+  border-left-color: var(--color-red, #d32f2f);
+}
+.kanban-root .kanban-badge.kanban-priority-p0 {
+  background-color: var(--color-red, #d32f2f);
+  color: white;
+}
+.kanban-root .kanban-priority-p1 {
+  border-left-color: var(--color-orange, #ef6c00);
+}
+.kanban-root .kanban-badge.kanban-priority-p1 {
+  background-color: var(--color-orange, #ef6c00);
+  color: white;
+}
+.kanban-root .kanban-priority-p2 {
+  border-left-color: var(--color-yellow, #f9a825);
+}
+.kanban-root .kanban-badge.kanban-priority-p2 {
+  background-color: var(--color-yellow, #f9a825);
+  color: black;
+}
+.kanban-root .kanban-priority-p3 {
+  border-left-color: var(--color-green, #43a047);
+}
+.kanban-root .kanban-badge.kanban-priority-p3 {
+  background-color: var(--color-green, #43a047);
+  color: white;
+}
+
+/* 期限色分け */
+.kanban-root .kanban-due {
+  color: var(--text-muted);
+}
+.kanban-root .kanban-due-overdue {
+  color: var(--color-red, #d32f2f);
+  font-weight: 600;
+}
+.kanban-root .kanban-due-soon {
+  color: var(--color-orange, #ef6c00);
+  font-weight: 600;
+}
+.kanban-root .kanban-due-week {
+  color: var(--color-yellow, #f9a825);
+}
+
+.kanban-root .kanban-subtasks {
+  color: var(--text-muted);
+}
+
+.kanban-root .kanban-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.kanban-root .kanban-tag {
+  font-size: var(--font-ui-smaller);
+  background-color: var(--background-secondary);
+  color: var(--text-muted);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+/* --- Subtasks (カード内に縦リストで表示、最大 5 件 + max-height) --- */
+.kanban-root .kanban-card-subtasks {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 4px 0;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+.kanban-root .kanban-subtask-more {
+  font-style: italic;
+  color: var(--text-faint);
+  padding-left: 18px;
+}
+.kanban-root .kanban-card-subtasks li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.kanban-root .kanban-card-subtasks li.checked {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+.kanban-root .kanban-subtask-check {
+  flex-shrink: 0;
+  font-family: var(--font-monospace);
+}
+.kanban-root .kanban-subtask-text {
+  flex: 1;
+}
+
+/* --- DragOverlay (ドラッグ中に追従する見た目) --- */
+.kanban-root .kanban-card-overlay,
+.kanban-card-overlay {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  cursor: grabbing;
+  transform: rotate(1deg);
+}
+
+/* --- Phase 3 DetailPane (右側ドロワー) --- */
+.kanban-root .kanban-detail-pane {
+  flex: 0 0 360px;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--background-modifier-border);
+  background-color: var(--background-primary);
+  min-height: 0;
+  overflow: hidden;
+  /* Obsidian 周辺 UI (status bar / pane header の小アイコン群等) と
+   * 重なって透けて見えるのを防ぐ。kanban view 内で前面 */
+  position: relative;
+  z-index: 10;
+}
+
+.kanban-root .kanban-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary-alt);
+  flex: 0 0 auto;
+}
+
+.kanban-root .kanban-detail-title {
+  margin: 0;
+  font-size: var(--font-ui-medium);
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.kanban-root .kanban-detail-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.kanban-root .kanban-detail-close:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.kanban-root .kanban-detail-form {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.kanban-root .kanban-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kanban-root .kanban-field-label {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.kanban-root .kanban-field input[type="text"],
+.kanban-root .kanban-field select,
+.kanban-root .kanban-field textarea {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  font-family: var(--font-interface);
+}
+.kanban-root .kanban-field textarea {
+  font-family: var(--font-monospace);
+  resize: vertical;
+  min-height: 120px;
+}
+.kanban-root .kanban-field input[type="text"]:focus,
+.kanban-root .kanban-field select:focus,
+.kanban-root .kanban-field textarea:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+}
+
+.kanban-root .kanban-field-row {
+  display: flex;
+  gap: 8px;
+  /* 狭い width で詰まらないよう wrap 許可 (花木 FB: 完了日/見積/実績が見切れる) */
+  flex-wrap: wrap;
+}
+.kanban-root .kanban-field-row > .kanban-field {
+  flex: 1 1 100px;
+  min-width: 100px;
+}
+
+/* --- サブタスク編集 UI (Phase 3 花木 FB) --- */
+.kanban-root .kanban-subtasks-field {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin: 0;
+  background-color: var(--background-secondary);
+}
+.kanban-root .kanban-subtasks-field > legend {
+  padding: 0 4px;
+}
+.kanban-root .kanban-subtasks-list {
+  list-style: none;
+  margin: 4px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.kanban-root .kanban-subtask-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.kanban-root .kanban-subtask-row > input[type="checkbox"] {
+  flex: 0 0 auto;
+  margin: 0;
+}
+.kanban-root .kanban-subtask-text-input {
+  flex: 1 1 auto;
+  padding: 4px 6px;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+}
+.kanban-root .kanban-subtask-text-input:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+}
+.kanban-root .kanban-subtask-remove {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: var(--font-ui-small);
+  line-height: 1.2;
+}
+.kanban-root .kanban-subtask-remove:hover {
+  color: var(--text-error);
+  border-color: var(--text-error);
+}
+.kanban-root .kanban-subtask-add {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 4px 10px;
+  font-size: var(--font-ui-small);
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+  border: 1px dashed var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.kanban-root .kanban-subtask-add:hover {
+  border-color: var(--interactive-accent);
+  color: var(--interactive-accent);
+}
+
+.kanban-root .kanban-detail-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-top: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary-alt);
+  flex: 0 0 auto;
+  gap: 8px;
+  /* スクロール中も保存ボタンが常に見える / 背後の周辺 UI と重ならない */
+  position: sticky;
+  bottom: 0;
+  z-index: 12;
+  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.15);
+}
+.kanban-root .kanban-detail-footer-right {
+  display: flex;
+  gap: 8px;
+}
+.kanban-root .kanban-detail-footer button {
+  padding: 6px 12px;
+  font-size: var(--font-ui-small);
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary);
+  color: var(--text-normal);
+  cursor: pointer;
+}
+.kanban-root .kanban-detail-footer button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.kanban-root .kanban-detail-footer .kanban-detail-save {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+.kanban-root .kanban-detail-footer .kanban-detail-save:hover:not(:disabled) {
+  background-color: var(--interactive-accent-hover);
+}
+.kanban-root .kanban-detail-footer .kanban-detail-archive {
+  color: var(--text-muted);
+}
+.kanban-root .kanban-detail-footer .kanban-detail-archive:hover:not(:disabled) {
+  color: var(--text-error);
+  border-color: var(--text-error);
+}
+
+/* --- Conflict banner --- */
+.kanban-root .kanban-conflict-banner {
+  margin: 8px 12px;
+  padding: 8px 10px;
+  background-color: var(--background-modifier-error);
+  color: var(--text-error);
+  border-radius: 4px;
+  font-size: var(--font-ui-small);
+}
+.kanban-root .kanban-conflict-banner .kanban-conflict-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.kanban-root .kanban-conflict-banner button {
+  padding: 4px 8px;
+  font-size: var(--font-ui-smaller);
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+  cursor: pointer;
+}
+
+/* Phase 7 (タスク追加): 列ヘッダーの「+」ボタン */
+.kanban-root .kanban-column-add {
+  width: 16px;
+  height: 14px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 3px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.kanban-root .kanban-column-add:hover {
+  color: var(--text-normal);
+  border-color: var(--interactive-accent);
+  background-color: var(--background-modifier-hover);
+}
+
+/* Phase 7 (タスク追加): インライン新規入力欄 */
+.kanban-root .kanban-column-new {
+  padding: 4px 6px;
+}
+.kanban-root .kanban-column-new-input {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  background-color: var(--background-primary);
+  border: 1px solid var(--interactive-accent);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+.kanban-root .kanban-column-new-input:focus {
+  outline: none;
+}
+
+/* =====================================================================
+ * Phase 8: メインボード 3 列化 + 完了/凍結サブビュー
+ * ===================================================================== */
+
+/* --- ViewTabs (KanbanRoot 最上部のタブ切替バー) --- */
+.kanban-root .kanban-view-tabs {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 2px;
+  padding: 8px 12px 0 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background-color: var(--background-primary);
+}
+.kanban-root .kanban-view-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+.kanban-root .kanban-view-tab:hover {
+  color: var(--text-normal);
+  background-color: var(--background-modifier-hover);
+}
+.kanban-root .kanban-view-tab.is-active {
+  color: var(--text-normal);
+  background-color: var(--background-secondary);
+  border-color: var(--background-modifier-border);
+  font-weight: 600;
+  /* 下境界線と被って見えるよう 1px ずらす */
+  margin-bottom: -1px;
+  padding-bottom: 7px;
+}
+.kanban-root .kanban-view-tab-label {
+  line-height: 1;
+}
+.kanban-root .kanban-view-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  background-color: var(--background-modifier-border);
+  border-radius: 8px;
+  line-height: 1;
+}
+.kanban-root .kanban-view-tab.is-active .kanban-view-tab-badge {
+  color: var(--text-on-accent);
+  background-color: var(--interactive-accent);
+}
+
+/* --- RecentCompletedSummary (ボード上部の直近完了サマリ) --- */
+.kanban-root .kanban-recent-completed {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 12px;
+  padding: 6px 12px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+}
+.kanban-root .kanban-recent-completed-text strong {
+  color: var(--text-normal);
+  font-variant-numeric: tabular-nums;
+}
+.kanban-root .kanban-recent-completed-link {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-accent);
+  background-color: transparent;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.kanban-root .kanban-recent-completed-link:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+/* --- Card の完了チェックボタン --- */
+.kanban-root .kanban-card-complete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-muted);
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 50%;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* DnD activator (wrapper) より上に乗せる */
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 80ms ease-out, color 80ms ease-out, border-color 80ms ease-out;
+}
+.kanban-root .kanban-card:hover .kanban-card-complete,
+.kanban-root .kanban-card-complete:focus-visible {
+  opacity: 1;
+}
+.kanban-root .kanban-card-complete:hover {
+  color: var(--text-on-accent);
+  background-color: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+}
+/* カードは position:relative で完了ボタンの絶対配置を受ける */
+.kanban-root .kanban-card {
+  position: relative;
+}
+/* 完了ボタンが存在するカードはタイトルに右余白を確保しタイトル文字との重なりを防ぐ */
+.kanban-root .kanban-card:has(> .kanban-card-complete) .kanban-card-title {
+  padding-right: 28px;
+}
+
+/* --- Subview 共通 (CompletedView / FrozenView) --- */
+.kanban-root .kanban-subview {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 12px 16px 16px 16px;
+  gap: 12px;
+  overflow-y: auto;
+}
+.kanban-root .kanban-subview-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.kanban-root .kanban-subview-h2 {
+  margin: 0;
+  font-size: var(--font-ui-medium);
+  font-weight: 600;
+}
+.kanban-root .kanban-subview-back {
+  padding: 4px 10px;
+  font-size: var(--font-ui-small);
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.kanban-root .kanban-subview-back:hover {
+  border-color: var(--interactive-accent);
+}
+.kanban-root .kanban-subview-empty {
+  color: var(--text-muted);
+  padding: 24px 0;
+  text-align: center;
+}
+.kanban-root .kanban-subview-action {
+  padding: 4px 12px;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.kanban-root .kanban-subview-action:hover {
+  border-color: var(--interactive-accent);
+}
+
+/* --- CompletedView 月セクション --- */
+.kanban-root .kanban-completed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.kanban-root .kanban-completed-month-h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 6px 0;
+  padding-bottom: 4px;
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+  color: var(--text-normal);
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-variant-numeric: tabular-nums;
+}
+.kanban-root .kanban-completed-month-count {
+  font-size: var(--font-ui-smaller);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.kanban-root .kanban-completed-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.kanban-root .kanban-completed-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background-color: var(--background-secondary);
+}
+.kanban-root .kanban-completed-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.kanban-root .kanban-completed-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--text-normal);
+  font-weight: 500;
+  word-break: break-word;
+}
+.kanban-root .kanban-completed-id {
+  display: inline-block;
+  flex-shrink: 0;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+.kanban-root .kanban-completed-text {
+  flex: 1 1 auto;
+}
+.kanban-root .kanban-completed-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+.kanban-root .kanban-completed-date {
+  font-variant-numeric: tabular-nums;
+}
+.kanban-root .kanban-completed-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.kanban-root .kanban-completed-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+/* --- FrozenView --- */
+.kanban-root .kanban-frozen-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.kanban-root .kanban-frozen-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background-color: var(--background-secondary);
+}
+.kanban-root .kanban-frozen-row-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.kanban-root .kanban-frozen-title {
+  flex: 1 1 auto;
+  font-weight: 600;
+  color: var(--text-normal);
+  word-break: break-word;
+  min-width: 0;
+}
+.kanban-root .kanban-frozen-updated {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.kanban-root .kanban-frozen-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background-color: var(--background-primary);
+  border-radius: 4px;
+}
+.kanban-root .kanban-frozen-label {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.kanban-root .kanban-frozen-body {
+  margin: 0;
+  font-family: inherit;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.kanban-root .kanban-frozen-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+/* =====================================================================
+ * Phase 9: ステータス絞り込みチップ + レイアウト切替 + ListView / FocusView
+ * ===================================================================== */
+
+/* --- ステータス絞り込みチップ (FilterBar 内) --- */
+.kanban-root .kanban-filter-chip-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.kanban-root .kanban-filter-chip-status .kanban-filter-chip-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  background-color: var(--background-modifier-border);
+  border-radius: 8px;
+  line-height: 1;
+}
+.kanban-root .kanban-filter-chip-status.is-active .kanban-filter-chip-badge {
+  color: var(--text-on-accent);
+  background-color: var(--interactive-accent);
+}
+
+/* --- レイアウト切替トグル (board/list/focus) --- */
+.kanban-root .kanban-layout-toggle {
+  display: inline-flex;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: var(--background-primary);
+}
+.kanban-root .kanban-layout-toggle-btn {
+  padding: 4px 10px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  background-color: transparent;
+  border: none;
+  border-left: 1px solid var(--background-modifier-border);
+  cursor: pointer;
+  font-family: inherit;
+}
+.kanban-root .kanban-layout-toggle-btn:first-child {
+  border-left: none;
+}
+.kanban-root .kanban-layout-toggle-btn:hover {
+  color: var(--text-normal);
+  background-color: var(--background-modifier-hover);
+}
+.kanban-root .kanban-layout-toggle-btn.is-active {
+  color: var(--text-on-accent);
+  background-color: var(--interactive-accent);
+}
+
+/* --- ListView 共通レイアウト --- */
+.kanban-root .kanban-list-layout {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+}
+.kanban-root .kanban-list-view {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.kanban-root .kanban-list-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.kanban-root .kanban-list-section-h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  padding-bottom: 4px;
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+  color: var(--text-normal);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.kanban-root .kanban-list-section-label {
+  font-weight: 600;
+}
+.kanban-root .kanban-list-section-count {
+  font-size: var(--font-ui-smaller);
+  font-weight: 400;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.kanban-root .kanban-list-section-empty {
+  margin: 4px 0 0 0;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+.kanban-root .kanban-list-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.kanban-root .kanban-listcard-wrapper {
+  outline: none;
+  cursor: pointer;
+}
+.kanban-root .kanban-listcard-wrapper:hover .kanban-card {
+  border-color: var(--interactive-accent);
+}
+
+/* --- FocusView (1 ステータス全幅) --- */
+.kanban-root .kanban-focus-layout {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+}
+.kanban-root .kanban-focus-view {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.kanban-root .kanban-focus-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding-bottom: 0;
+}
+.kanban-root .kanban-focus-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  font-family: inherit;
+  margin-bottom: -1px;
+}
+.kanban-root .kanban-focus-tab:hover {
+  color: var(--text-normal);
+  background-color: var(--background-modifier-hover);
+}
+.kanban-root .kanban-focus-tab.is-active {
+  color: var(--text-normal);
+  background-color: var(--background-secondary);
+  border-color: var(--background-modifier-border);
+  font-weight: 600;
+  padding-bottom: 9px;
+}
+.kanban-root .kanban-focus-tab-label {
+  line-height: 1;
+}
+.kanban-root .kanban-focus-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  background-color: var(--background-modifier-border);
+  border-radius: 8px;
+  line-height: 1;
+}
+.kanban-root .kanban-focus-tab.is-active .kanban-focus-tab-badge {
+  color: var(--text-on-accent);
+  background-color: var(--interactive-accent);
+}
+.kanban-root .kanban-focus-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* フォーカスモードはカードを少しゆったり */
+  max-width: 920px;
+}
+
+/* =====================================================================
+ * Phase 9: 画像添付セクション
+ * ===================================================================== */
+.kanban-root .kanban-attachments-field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px 12px;
+  border: 1px dashed var(--background-modifier-border);
+  border-radius: 6px;
+  background-color: var(--background-secondary);
+  transition: border-color 80ms ease, background-color 80ms ease;
+}
+.kanban-root .kanban-attachments-field.is-drag-over {
+  border-color: var(--interactive-accent);
+  background-color: var(--background-modifier-hover);
+}
+.kanban-root .kanban-attachments-field > legend {
+  padding: 0 6px;
+}
+.kanban-root .kanban-attachments-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+.kanban-root .kanban-attachment-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.kanban-root .kanban-attachment-item img {
+  width: 100%;
+  height: 90px;
+  object-fit: contain;
+  background-color: var(--background-primary-alt, var(--background-primary));
+  border-radius: 3px;
+  cursor: zoom-in;
+}
+.kanban-root .kanban-attachment-name {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  word-break: break-all;
+  /* 2 行までで省略 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.kanban-root .kanban-attachment-missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 90px;
+  color: var(--text-muted);
+  background-color: var(--background-modifier-error-hover, var(--background-modifier-border));
+  border-radius: 3px;
+  font-size: 24px;
+}
+.kanban-root .kanban-attachment-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-muted);
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 80ms ease;
+}
+.kanban-root .kanban-attachment-item:hover .kanban-attachment-remove,
+.kanban-root .kanban-attachment-remove:focus-visible {
+  opacity: 1;
+}
+.kanban-root .kanban-attachment-remove:hover {
+  color: var(--text-on-accent);
+  background-color: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+}
+.kanban-root .kanban-attachments-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.kanban-root .kanban-attachments-add {
+  padding: 4px 12px;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.kanban-root .kanban-attachments-add:hover {
+  border-color: var(--interactive-accent);
+}
+.kanban-root .kanban-attachments-hint {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+/* PDF 添付: サムネ枠にアイコン + ファイル名表示、クリックで Obsidian 内タブで開く */
+.kanban-root .kanban-attachment-pdf-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 90px;
+  padding: 0;
+  background-color: var(--background-primary-alt, var(--background-primary));
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.kanban-root .kanban-attachment-pdf-thumb:hover {
+  border-color: var(--interactive-accent);
+  background-color: var(--background-modifier-hover);
+}
+.kanban-root .kanban-attachment-pdf-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text-on-accent);
+  background-color: var(--interactive-accent);
+  border-radius: 4px;
+}
+.kanban-root .kanban-attachment-item img {
+  cursor: pointer;
+}
+.kanban-root .kanban-attachment-item img:hover {
+  outline: 1px solid var(--interactive-accent);
+}
+
+/* =====================================================================
+ * Phase 10 (P4): フィルタプリセット
+ * ===================================================================== */
+.kanban-root .kanban-filter-preset {
+  position: relative;
+}
+.kanban-root .kanban-filter-preset-toggle {
+  padding: 4px 10px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.kanban-root .kanban-filter-preset-toggle:hover {
+  border-color: var(--interactive-accent);
+  color: var(--text-normal);
+}
+.kanban-root .kanban-filter-preset-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 220px;
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
+  padding: 6px;
+  z-index: 20;
+}
+.kanban-root .kanban-filter-preset-empty {
+  padding: 8px 10px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+.kanban-root .kanban-filter-preset-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.kanban-root .kanban-filter-preset-apply {
+  flex: 1;
+  text-align: left;
+  padding: 6px 10px;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  background-color: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.kanban-root .kanban-filter-preset-apply:hover {
+  background-color: var(--background-modifier-hover);
+}
+.kanban-root .kanban-filter-preset-delete {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--text-muted);
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.kanban-root .kanban-filter-preset-delete:hover {
+  color: var(--text-on-accent);
+  background-color: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+}
+.kanban-root .kanban-filter-preset-divider {
+  height: 1px;
+  background-color: var(--background-modifier-border);
+  margin: 6px 0;
+}
+.kanban-root .kanban-filter-preset-save {
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  font-size: var(--font-ui-small);
+  color: var(--text-accent);
+  background-color: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.kanban-root .kanban-filter-preset-save:hover:not(:disabled) {
+  background-color: var(--background-modifier-hover);
+}
+.kanban-root .kanban-filter-preset-save:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* =====================================================================
+ * Phase 10 (P1): カレンダービュー
+ * ===================================================================== */
+.kanban-root .kanban-calendar-layout {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+}
+.kanban-root .kanban-calendar-view {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.kanban-root .kanban-calendar-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.kanban-root .kanban-calendar-title {
+  margin: 0;
+  font-size: var(--font-ui-medium);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.kanban-root .kanban-calendar-total {
+  font-size: var(--font-ui-smaller);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.kanban-root .kanban-calendar-nav,
+.kanban-root .kanban-calendar-today {
+  padding: 4px 10px;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  min-width: 28px;
+}
+.kanban-root .kanban-calendar-nav:hover,
+.kanban-root .kanban-calendar-today:hover {
+  border-color: var(--interactive-accent);
+}
+.kanban-root .kanban-calendar-weekday-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  background-color: var(--background-modifier-border);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px 4px 0 0;
+}
+.kanban-root .kanban-calendar-weekday {
+  padding: 4px 6px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  background-color: var(--background-primary);
+  text-align: center;
+  font-weight: 600;
+}
+.kanban-root .kanban-calendar-weekday.is-sun {
+  color: var(--text-error, #e07070);
+}
+.kanban-root .kanban-calendar-weekday.is-sat {
+  color: var(--text-accent, #6090e0);
+}
+.kanban-root .kanban-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: 1fr;
+  gap: 2px;
+  background-color: var(--background-modifier-border);
+  border: 1px solid var(--background-modifier-border);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  min-height: 600px;
+}
+.kanban-root .kanban-calendar-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 6px;
+  background-color: var(--background-primary);
+  min-height: 90px;
+  overflow: hidden;
+}
+.kanban-root .kanban-calendar-cell.is-out {
+  background-color: var(--background-secondary);
+  color: var(--text-muted);
+}
+.kanban-root .kanban-calendar-cell.is-today {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+}
+.kanban-root .kanban-calendar-cell.is-past {
+  background-color: var(--background-secondary);
+}
+.kanban-root .kanban-calendar-cell.is-sun .kanban-calendar-cell-day {
+  color: var(--text-error, #e07070);
+}
+.kanban-root .kanban-calendar-cell.is-sat .kanban-calendar-cell-day {
+  color: var(--text-accent, #6090e0);
+}
+.kanban-root .kanban-calendar-cell-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--font-ui-smaller);
+}
+.kanban-root .kanban-calendar-cell-day {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.kanban-root .kanban-calendar-cell-count {
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 0 4px;
+  background-color: var(--background-modifier-border);
+  border-radius: 6px;
+}
+.kanban-root .kanban-calendar-cell-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+.kanban-root .kanban-calendar-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  font-size: 10px;
+  color: var(--text-normal);
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  width: 100%;
+  overflow: hidden;
+}
+.kanban-root .kanban-calendar-chip:hover {
+  border-color: var(--interactive-accent);
+}
+.kanban-root .kanban-calendar-chip-prio {
+  font-weight: 700;
+  font-size: 9px;
+  flex-shrink: 0;
+}
+.kanban-root .kanban-calendar-chip-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kanban-root .kanban-calendar-chip-more {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* =====================================================================
+ * Phase 10 (P2): 統計ビュー
+ * ===================================================================== */
+.kanban-root .kanban-stats-layout {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+}
+.kanban-root .kanban-stats-view {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.kanban-root .kanban-stats-section-h3 {
+  margin: 0 0 10px 0;
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+  color: var(--text-normal);
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding-bottom: 4px;
+}
+.kanban-root .kanban-stats-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.kanban-root .kanban-stats-kpi {
+  padding: 10px 14px;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+}
+.kanban-root .kanban-stats-kpi-warn {
+  border-color: var(--text-error, #e07070);
+}
+.kanban-root .kanban-stats-kpi-accent {
+  border-color: var(--interactive-accent);
+}
+.kanban-root .kanban-stats-kpi-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-normal);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.kanban-root .kanban-stats-kpi-warn .kanban-stats-kpi-value {
+  color: var(--text-error, #e07070);
+}
+.kanban-root .kanban-stats-kpi-accent .kanban-stats-kpi-value {
+  color: var(--interactive-accent);
+}
+.kanban-root .kanban-stats-kpi-label {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.kanban-root .kanban-stats-bars {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 8px;
+  height: 160px;
+  align-items: end;
+}
+.kanban-root .kanban-stats-bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+}
+.kanban-root .kanban-stats-bar {
+  width: 100%;
+  min-height: 2px;
+  background-color: var(--interactive-accent);
+  border-radius: 3px 3px 0 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 2px;
+  transition: height 200ms ease;
+}
+.kanban-root .kanban-stats-bar-value {
+  font-size: 10px;
+  color: var(--text-on-accent);
+  font-weight: 600;
+}
+.kanban-root .kanban-stats-bar-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.kanban-root .kanban-stats-priorities {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.kanban-root .kanban-stats-priority {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 14px;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  min-width: 90px;
+}
+.kanban-root .kanban-stats-priority-label {
+  font-weight: 700;
+}
+.kanban-root .kanban-stats-priority-value {
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.kanban-root .kanban-stats-stalled {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.kanban-root .kanban-stats-stalled-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: var(--text-normal);
+}
+.kanban-root .kanban-stats-stalled-row:hover {
+  border-color: var(--interactive-accent);
+}
+.kanban-root .kanban-stats-stalled-title {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kanban-root .kanban-stats-stalled-age {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+.kanban-root .kanban-stats-stalled-status {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  padding: 2px 6px;
+  background-color: var(--background-primary);
+  border-radius: 3px;
+}
+
+/* =====================================================================
+ * Phase 11: iPhone / iPad モバイル レスポンシブ対応
+ * - 720px 以下: タブレット縦持ち相当の調整
+ * - 480px 以下: iPhone 縦持ち相当のフル調整
+ *
+ * 設計方針:
+ * - メインボード: 縦スクロール（カラムを縦に積む）に変更
+ * - DetailPane: 右側 split を解いて画面全体に重ねる drawer 化
+ * - 完了チェックボタン: hover 不在の touch 環境では常時表示
+ * - タップ領域: 主要ボタンを 32-40px 以上に確保
+ * - FilterBar / ViewTabs: 横スクロール許容で折り返し最適化
+ * ===================================================================== */
+@media (max-width: 720px) {
+  /* タップ領域確保: ボタン全般を少し大きく */
+  .kanban-root .kanban-view-tab,
+  .kanban-root .kanban-filter-chip,
+  .kanban-root .kanban-layout-toggle-btn,
+  .kanban-root .kanban-viewmode-toggle,
+  .kanban-root .kanban-filter-preset-toggle {
+    min-height: 32px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  /* FilterBar: チップ群を横スクロール可に */
+  .kanban-root .kanban-filterbar {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+  .kanban-root .kanban-filterbar-group {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .kanban-root .kanban-filterbar-search .kanban-filter-search-input {
+    min-width: 0;
+    width: 140px;
+  }
+
+  /* ViewTabs: 4 タブを画面幅に収める */
+  .kanban-root .kanban-view-tabs {
+    padding: 6px 8px 0 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .kanban-root .kanban-view-tab {
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
+
+  /* メインボード (3 列) を縦に積み替える: 横スクロールではなく縦スクロール */
+  .kanban-root .kanban-board-layout {
+    flex-direction: column;
+  }
+  .kanban-root .kanban-board {
+    flex-direction: column;
+    overflow-x: visible;
+    overflow-y: auto;
+    gap: 12px;
+  }
+  .kanban-root .kanban-column {
+    width: 100%;
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+
+  /* DetailPane を全画面 drawer 化 (右側ペインではなく重ねる) */
+  .kanban-root .kanban-detail-pane {
+    position: fixed;
+    inset: 0;
+    width: auto;
+    max-width: none;
+    z-index: 50;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.3);
+    overflow-y: auto;
+  }
+  .kanban-root .kanban-detail-close {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  /* 完了チェックボタン: hover が無い環境では常時表示 + 拡大 */
+  .kanban-root .kanban-card-complete {
+    opacity: 1;
+    width: 32px;
+    height: 32px;
+    top: 4px;
+    right: 4px;
+    font-size: 16px;
+  }
+  .kanban-root .kanban-card:has(> .kanban-card-complete) .kanban-card-title {
+    padding-right: 40px;
+  }
+
+  /* List / Focus / Calendar / Stats でも DetailPane を被せる以上、layout は単列 */
+  .kanban-root .kanban-list-layout,
+  .kanban-root .kanban-focus-layout,
+  .kanban-root .kanban-calendar-layout,
+  .kanban-root .kanban-stats-layout {
+    flex-direction: column;
+  }
+
+  /* カレンダーは小幅で日付の番号のみ、チップは隠す（タップで詳細を別画面想定） */
+  .kanban-root .kanban-calendar-cell {
+    min-height: 56px;
+    padding: 2px 4px;
+  }
+  .kanban-root .kanban-calendar-cell-body {
+    display: none;
+  }
+  .kanban-root .kanban-calendar-cell-count {
+    font-size: 10px;
+  }
+  .kanban-root .kanban-calendar-grid {
+    min-height: 360px;
+  }
+
+  /* 統計: KPI を 2 列に */
+  .kanban-root .kanban-stats-kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .kanban-root .kanban-stats-bars {
+    grid-template-columns: repeat(8, 1fr);
+    height: 120px;
+  }
+
+  /* 添付グリッドを 2 列固定 */
+  .kanban-root .kanban-attachments-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .kanban-root .kanban-attachment-remove {
+    /* touch では常時表示 */
+    opacity: 1;
+    width: 28px;
+    height: 28px;
+  }
+
+  /* プリセットメニューを画面右端から少し離す */
+  .kanban-root .kanban-filter-preset-menu {
+    right: -4px;
+    min-width: 200px;
+  }
+
+  /* RecentCompletedSummary を小幅で折り返し */
+  .kanban-root .kanban-recent-completed {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 480px) {
+  /* iPhone 縦持ち: もう一段詰める */
+  .kanban-root .kanban-detail-form {
+    padding: 0 8px;
+  }
+  .kanban-root .kanban-field-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  /* 統計 KPI を 1 列にしない (2 列維持で密度確保) */
+  .kanban-root .kanban-stats-kpi-value {
+    font-size: 18px;
+  }
+  /* カレンダーの曜日ヘッダを小さく */
+  .kanban-root .kanban-calendar-weekday {
+    padding: 2px 2px;
+    font-size: 10px;
+  }
+  .kanban-root .kanban-calendar-cell {
+    min-height: 44px;
+  }
+  /* 滞留タスク行を縦並びに */
+  .kanban-root .kanban-stats-stalled-row {
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      "id title prio"
+      "age age status";
+    gap: 6px;
+  }
+}

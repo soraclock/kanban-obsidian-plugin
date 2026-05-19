@@ -1,0 +1,18 @@
+node_modules/
+main.js
+main.js.map
+data.json
+.DS_Store
+*.log
+coverage/
+.vitest-cache/
+
+# vault data (絶対に repo に含めない)
+.kanban-journal.jsonl
+.kanban-lock
+.kanban-archive*.jsonl
+
+# OS / editor
+.idea/
+.vscode/
+*.swp
