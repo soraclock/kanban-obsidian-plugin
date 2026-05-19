@@ -2351,9 +2351,16 @@
     min-height: 36px;
     box-sizing: border-box;
   }
+
+  /* Mobile では field-row を DOM 上は残しつつレイアウト上「無視」する。
+     これで上半分 (field-row 内) と下半分 (form 直下) の構造差が消え、
+     全フィールドが form の direct children として並び gap: 8px が統一適用される。
+     v0.1.10〜v0.1.14 で gap/min-height/-webkit-appearance を調整しても
+     直らなかった真因は、field-row の親 div が flex item として独自の暗黙高さを
+     持ち、内部 field の gap よりも先に row 自体の高さが効いていたこと。
+     display: contents は親 div そのものを「箱として無い」扱いにし、この問題を根本解消する。 */
   .kanban-root .kanban-field-row {
-    gap: 8px;
-    margin: 0;
+    display: contents;
   }
 
   /* DetailPane フッターが Obsidian モバイルのボトムツールバー（< > 🔍 + ≡）と
@@ -2397,9 +2404,10 @@
     padding: 4px 8px;
     gap: 8px;
   }
+  /* 480px でも display: contents を維持（720px の指定が cascade で勝つはず
+     だが念のため明示）。 */
   .kanban-root .kanban-field-row {
-    flex-direction: column;
-    gap: 8px; /* 上下フィールドの間隔を form direct children と揃える */
+    display: contents;
   }
   /* 統計 KPI を 1 列にしない (2 列維持で密度確保) */
   .kanban-root .kanban-stats-kpi-value {
