@@ -22,16 +22,35 @@ function dateToYmd(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/**
+ * 任意の値を YYYY-MM-DD 文字列に正規化（できれば）。
+ *
+ * 受け付ける形:
+ * - Date オブジェクト（YAML parser が timestamp として解釈した場合）
+ * - "YYYY-MM-DD" 純粋形
+ * - "YYYY-MM-DDTHH:MM:SS..." ISO 8601 形（過去バージョンの書き戻しで生成された遺物）
+ *
+ * 想定外の string や Date 以外の型はそのまま透過し、後段の regex で検証エラーにする。
+ */
+function toYmdIfDateLike(v: unknown): unknown {
+  if (v instanceof Date && !isNaN(v.getTime())) return dateToYmd(v);
+  if (typeof v === "string") {
+    // 先頭 YYYY-MM-DD 部分を抽出（"2026-05-03T00:00:00.000Z" → "2026-05-03"）
+    const m = v.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (m) return m[1];
+  }
+  return v;
+}
+
 const dateString = z.preprocess(
-  (v) => (v instanceof Date && !isNaN(v.getTime()) ? dateToYmd(v) : v),
+  toYmdIfDateLike,
   z.string().regex(ISO_DATE, "must be YYYY-MM-DD"),
 );
 
 const nullableDateString = z.preprocess(
   (v) => {
     if (v === null) return null;
-    if (v instanceof Date && !isNaN(v.getTime())) return dateToYmd(v);
-    return v;
+    return toYmdIfDateLike(v);
   },
   z.union([z.string().regex(ISO_DATE, "must be YYYY-MM-DD"), z.null()]),
 );
