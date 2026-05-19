@@ -1,5 +1,5 @@
 import type { App, TFile } from "obsidian";
-import matter from "gray-matter";
+import { stringifyFile } from "./Frontmatter";
 import { PathLock } from "./PathLock";
 import { WriteJournal, type JournalEntry } from "./WriteJournal";
 import { sha256 } from "./ContentHash";
@@ -131,7 +131,7 @@ export class TaskCreator {
       recurrence: null,
     };
     const body = "\n## 背景\n\n## 次のアクション\n- [ ] \n\n## メモ\n";
-    return matter.stringify(body, data);
+    return stringifyFile(body, data);
   }
 
   private getTFile(filePath: string): TFile {

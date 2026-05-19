@@ -1,8 +1,9 @@
-import { Plugin, WorkspaceLeaf, Notice, TFile } from "obsidian";
+import { Plugin, WorkspaceLeaf, Notice, TFile, Platform } from "obsidian";
 import { PluginLifecycle } from "./lifecycle/PluginLifecycle";
-import { EnvironmentGate } from "./env/EnvironmentGate";
-import { LegacyKanbanDetector } from "./env/LegacyKanbanDetector";
-import { ProcessLock } from "./data/ProcessLock";
+// Node 依存（fs / process / crypto）を持つ ProcessLock / EnvironmentGate / LegacyKanbanDetector
+// は、デスクトップでのみ動的 import する。型は import type で型情報だけ取得して runtime コードに含めない。
+import type { EnvironmentGate as EnvironmentGateType } from "./env/EnvironmentGate";
+import type { ProcessLock as ProcessLockType } from "./data/ProcessLock";
 import { KanbanView, KANBAN_VIEW_TYPE } from "./view/KanbanView";
 import { LEGACY_KANBAN_PORT, journalPathFor, lockPathFor } from "./data/Constants";
 import { DEFAULT_SETTINGS, normalizeTasksDir, type PluginSettings } from "./settings/PluginSettings";
@@ -27,8 +28,8 @@ export default class KanbanPlugin extends Plugin {
   settings: PluginSettings = { ...DEFAULT_SETTINGS };
 
   private lifecycle?: PluginLifecycle;
-  private gate?: EnvironmentGate;
-  private processLock?: ProcessLock;
+  private gate?: EnvironmentGateType;
+  private processLock?: ProcessLockType;
   private legacyLockToken: string | null = null;
 
   // Phase 2: write 系サービス
@@ -54,20 +55,28 @@ export default class KanbanPlugin extends Plugin {
     await this.lifecycle.onLoad();
 
     const tasksDir = this.settings.tasksDir;
-    const lockPath = lockPathFor(tasksDir);
     const journalPath = journalPathFor(tasksDir);
 
-    this.processLock = new ProcessLock(this.app.vault, lockPath);
-
-    this.gate = new EnvironmentGate(this.app, {
-      legacyKanbanPort: LEGACY_KANBAN_PORT,
-      processLock: this.processLock,
-      tasksDir,
-    });
-
-    const gateResult = await this.gate.check();
-    this.legacyLockToken = gateResult.legacyLockToken;
-    this.lifecycle.applyGateResult(gateResult);
+    // モバイル（iOS/Android）では Node.js fs / process / crypto が使えないため、
+    // ProcessLock と EnvironmentGate の legacy detection を skip する。
+    // ProcessLock は 1 vault に 1 Obsidian インスタンスしか起動しない前提のモバイルでは
+    // 元々不要。EnvironmentGate の旧 Hono kanban 検知は corp 専用なので skip しても安全。
+    if (!Platform.isMobile) {
+      const lockPath = lockPathFor(tasksDir);
+      const { ProcessLock } = await import("./data/ProcessLock");
+      const { EnvironmentGate } = await import("./env/EnvironmentGate");
+      this.processLock = new ProcessLock(this.app.vault, lockPath);
+      this.gate = new EnvironmentGate(this.app, {
+        legacyKanbanPort: LEGACY_KANBAN_PORT,
+        processLock: this.processLock,
+        tasksDir,
+      });
+      const gateResult = await this.gate.check();
+      this.legacyLockToken = gateResult.legacyLockToken;
+      this.lifecycle.applyGateResult(gateResult);
+    } else {
+      console.log("[kanban] mobile detected: skipping ProcessLock + EnvironmentGate");
+    }
 
     // Phase 2 services
     this.pathLock = new PathLock();
@@ -253,7 +262,7 @@ export default class KanbanPlugin extends Plugin {
     });
 
     console.log("[kanban] plugin loaded.", {
-      mode: gateResult.mode,
+      mobile: Platform.isMobile,
       legacyLocked: this.legacyLockToken != null,
     });
   }
@@ -314,6 +323,7 @@ export default class KanbanPlugin extends Plugin {
 
     if (this.legacyLockToken) {
       try {
+        const { LegacyKanbanDetector } = await import("./env/LegacyKanbanDetector");
         const detector = new LegacyKanbanDetector(LEGACY_KANBAN_PORT);
         const res = await detector.requestUnlock(this.legacyLockToken);
         console.log("[kanban] legacy unlock result:", res);

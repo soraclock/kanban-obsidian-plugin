@@ -1,5 +1,5 @@
 import type { App, TFile } from "obsidian";
-import matter from "gray-matter";
+import { parseFile, stringifyFile, type FrontmatterFile } from "./Frontmatter";
 import { PathLock } from "./PathLock";
 import { WriteJournal, type JournalEntry } from "./WriteJournal";
 import { sha256, ConflictError } from "./ContentHash";
@@ -285,10 +285,10 @@ export class TaskWriter {
         );
       }
 
-      // gray-matter で frontmatter + body を 1 回でビルド → 単一 vault.modify
-      let parsed: matter.GrayMatterFile<string>;
+      // frontmatter + body を 1 回でビルド → 単一 vault.modify
+      let parsed: FrontmatterFile;
       try {
-        parsed = matter(before);
+        parsed = parseFile(before);
       } catch (e) {
         throw new Error(`frontmatter parse failed: ${(e as Error).message}`);
       }
@@ -306,7 +306,7 @@ export class TaskWriter {
       newData.updated = todayYmd();
 
       const newBody = patch.bodyMarkdown !== undefined ? patch.bodyMarkdown : parsed.content;
-      const newContent = matter.stringify(newBody, newData);
+      const newContent = stringifyFile(newBody, newData);
       // codex round 2 追加 Major: frontmatter 込みの総ファイルサイズも上限チェック
       // (tags/related 等で 1MB 超過すると repository が skip し UI から消える DoS を防ぐ)
       const totalSize = new TextEncoder().encode(newContent).byteLength;

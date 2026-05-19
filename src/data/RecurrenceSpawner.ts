@@ -1,5 +1,5 @@
 import type { App, TFile } from "obsidian";
-import matter from "gray-matter";
+import { stringifyFile } from "./Frontmatter";
 import type { Task } from "./Task";
 import { parseRecurrence, nextDueDate } from "./Recurrence";
 import { PathLock } from "./PathLock";
@@ -143,7 +143,7 @@ export function buildNewTaskContent(
   // 末尾 order は呼び出し側で再 sort 不要 (新規 reload で自然に末尾になる)
   // body markdown: source の本文中の `- [x]` を `- [ ]` に置換して unchecked にする
   const resetBody = source.bodyMarkdown.replace(/(-\s*\[)[xX](\])/g, "$1 $2");
-  return matter.stringify(resetBody, data);
+  return stringifyFile(resetBody, data);
 }
 
 function ymdLocal(d: Date): string {

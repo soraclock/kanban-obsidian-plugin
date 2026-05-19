@@ -1,5 +1,5 @@
 import type { App, TFile } from "obsidian";
-import matter from "gray-matter";
+import { parseFile, type FrontmatterFile } from "./Frontmatter";
 import { TaskFrontmatterSchema, STATUS_VALUES, type TaskFrontmatter } from "./TaskSchema";
 import { statusHasVariance } from "../util/normalize";
 import { DANGEROUS_FRONTMATTER_KEYS, MAX_FILE_SIZE_BYTES } from "./Constants";
@@ -72,11 +72,11 @@ export class SchemaAudit {
       }
 
       const content = await this.app.vault.read(file);
-      let parsed: matter.GrayMatterFile<string>;
+      let parsed: FrontmatterFile;
       try {
-        parsed = matter(content);
+        parsed = parseFile(content);
       } catch (e) {
-        errors.push({ level: "error", file: file.path, message: `gray-matter parse failed: ${(e as Error).message}` });
+        errors.push({ level: "error", file: file.path, message: `frontmatter parse failed: ${(e as Error).message}` });
         continue;
       }
 

@@ -1,5 +1,5 @@
 import type { App, TFile } from "obsidian";
-import matter from "gray-matter";
+import { parseFile, type FrontmatterFile } from "./Frontmatter";
 import { TaskFrontmatterSchema } from "./TaskSchema";
 import { parseSubtasks } from "./Subtasks";
 import type { Task } from "./Task";
@@ -72,11 +72,11 @@ export class TaskRepository {
       }
 
       const content = await this.app.vault.read(file);
-      let parsed: matter.GrayMatterFile<string>;
+      let parsed: FrontmatterFile;
       try {
-        parsed = matter(content);
+        parsed = parseFile(content);
       } catch (e) {
-        return { filePath: file.path, message: `gray-matter parse failed: ${(e as Error).message}` };
+        return { filePath: file.path, message: `frontmatter parse failed: ${(e as Error).message}` };
       }
 
       // prototype pollution 系の危険キー検出 (review security#Major 反映)
