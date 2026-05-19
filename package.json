@@ -1,6 +1,6 @@
 {
   "name": "kanban-obsidian-plugin",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Obsidian plugin for personal kanban task board backed by vault Markdown files (one task = one file, frontmatter-based).",
   "license": "MIT",
   "main": "main.js",

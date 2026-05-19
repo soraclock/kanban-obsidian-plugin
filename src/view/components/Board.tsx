@@ -160,6 +160,37 @@ function getKeyboardPosition(event: DragEndEvent): "before" | "after" | null {
   return null;
 }
 
+/**
+ * schema audit エラーを折りたたみ式で表示。
+ * デフォルトは閉じ（タイトルだけ）、タップで詳細展開。
+ * モバイル画面で赤い大きな塊が画面を専有するのを避けるための圧縮表示。
+ */
+function ErrorBanner({ errors }: { errors: Array<{ filePath: string; message: string }> }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="kanban-warning-banner kanban-warning-banner--collapsible">
+      <button
+        type="button"
+        className="kanban-warning-banner-toggle"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+      >
+        <strong>schema audit:</strong> {errors.length} issue(s) {expanded ? "▲" : "▼"}
+      </button>
+      {expanded && (
+        <ul>
+          {errors.slice(0, 5).map((e, i) => (
+            <li key={i}>
+              {e.filePath}: {e.message}
+            </li>
+          ))}
+          {errors.length > 5 && <li>... +{errors.length - 5} more</li>}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function Board({ app, ctx }: { app: App; ctx: PluginContext }) {
   const tasks = useBoardStore((s) => s.tasks);
   const filter = useBoardStore((s) => s.filter);
@@ -440,19 +471,7 @@ export function Board({ app, ctx }: { app: App; ctx: PluginContext }) {
       ? ACTIVE_STATUSES.filter((s) => filter.statuses.includes(s))
       : ACTIVE_STATUSES;
 
-  const errorBanner = errors.length > 0 && (
-    <div className="kanban-warning-banner">
-      <strong>schema audit:</strong> {errors.length} issue(s)
-      <ul>
-        {errors.slice(0, 5).map((e, i) => (
-          <li key={i}>
-            {e.filePath}: {e.message}
-          </li>
-        ))}
-        {errors.length > 5 && <li>... +{errors.length - 5} more</li>}
-      </ul>
-    </div>
-  );
+  const errorBanner = errors.length > 0 && <ErrorBanner errors={errors} />;
 
   // Phase 9: layout=list / focus は DndContext を被せない（DnD 非対応の純表示モード）
   if (layoutMode === "list") {

@@ -11,6 +11,12 @@
   font-family: var(--font-interface);
   color: var(--text-normal);
   background-color: var(--background-primary);
+  /* iOS / iPad の safe-area（ステータスバー / ホームインジケータ）を回避 */
+  padding-top: env(safe-area-inset-top, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-left: env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+  box-sizing: border-box;
 }
 
 .kanban-root .kanban-root-inner {
@@ -30,6 +36,23 @@
 .kanban-root .kanban-warning-banner ul {
   margin: 4px 0 0 18px;
   padding: 0;
+}
+/* 折りたたみ式の error banner（モバイルで画面を専有しないため） */
+.kanban-root .kanban-warning-banner--collapsible {
+  padding: 4px 12px;
+}
+.kanban-root .kanban-warning-banner-toggle {
+  background: transparent;
+  color: var(--text-error);
+  border: none;
+  padding: 4px 0;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.kanban-root .kanban-warning-banner--collapsible ul {
+  margin: 4px 0 6px 18px;
 }
 
 .kanban-root .kanban-loading {
@@ -1970,6 +1993,21 @@
     padding-bottom: 6px;
   }
 
+  /* Obsidian モバイルのボトムバー（< > 🔍 + 2 ≡）と被らないように、
+     スクロール領域の下端に十分な余白を確保する。
+     safe-area-inset-bottom（ホームインジケータ）は .kanban-root で対応済。
+     ここはそれに加えて Obsidian ボトムバー分（約 56px）を追加する。 */
+  .kanban-root .kanban-board-columns,
+  .kanban-root .kanban-list-view,
+  .kanban-root .kanban-focus-view,
+  .kanban-root .kanban-completed-view,
+  .kanban-root .kanban-frozen-view,
+  .kanban-root .kanban-archive-view,
+  .kanban-root .kanban-stats-view,
+  .kanban-root .kanban-calendar-view {
+    padding-bottom: 64px;
+  }
+
   /* FilterBar: チップ群を横スクロール可に */
   .kanban-root .kanban-filterbar {
     padding: 6px 8px;
@@ -1983,7 +2021,13 @@
   }
   .kanban-root .kanban-filterbar-search .kanban-filter-search-input {
     min-width: 0;
-    width: 140px;
+    width: 100%;
+  }
+  /* タイトル検索欄は別行に折り返して入力幅を確保 */
+  .kanban-root .kanban-filterbar-search {
+    flex: 1 1 100%;
+    order: 99;
+    min-width: 100%;
   }
 
   /* ViewTabs: 4 タブを画面幅に収める */
