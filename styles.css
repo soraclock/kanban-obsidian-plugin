@@ -2310,22 +2310,28 @@
   /* DetailPane のフィールド間隔が広すぎてスクロール量が増える問題への対応。
      項目間 gap と padding を mobile では詰めて、1 画面に収まる情報量を増やす。 */
   .kanban-root .kanban-detail-form {
-    gap: 6px;
-    padding: 6px 10px;
+    gap: 2px;
+    padding: 4px 10px;
   }
   .kanban-root .kanban-field {
-    gap: 2px;
+    gap: 0;
   }
   .kanban-root .kanban-field-label {
-    font-size: 11px;
+    font-size: 10px;
+    line-height: 1.2;
+    margin-bottom: 1px;
   }
   .kanban-root .kanban-field input[type="text"],
   .kanban-root .kanban-field select,
   .kanban-root .kanban-field textarea,
   .kanban-root .kanban-field input[type="date"] {
-    padding: 8px 10px;
+    padding: 6px 8px;
     font-size: 15px; /* iOS で 16px 未満だと拡大されるので 15 にしておく */
-    min-height: 38px;
+    min-height: 32px;
+  }
+  .kanban-root .kanban-field-row {
+    gap: 4px;
+    margin: 0;
   }
 
   /* DetailPane フッターが Obsidian モバイルのボトムツールバー（< > 🔍 + ≡）と
@@ -2366,11 +2372,12 @@
 @media (max-width: 480px) {
   /* iPhone 縦持ち: もう一段詰める */
   .kanban-root .kanban-detail-form {
-    padding: 0 8px;
+    padding: 2px 8px;
+    gap: 2px;
   }
   .kanban-root .kanban-field-row {
     flex-direction: column;
-    gap: 8px;
+    gap: 2px;
   }
   /* 統計 KPI を 1 列にしない (2 列維持で密度確保) */
   .kanban-root .kanban-stats-kpi-value {
