@@ -67,4 +67,38 @@ describe("TaskFrontmatterSchema", () => {
       expect((result.data as Record<string, unknown>).foo).toBe("bar");
     }
   });
+
+  // v0.1.5 で追加した ISO 8601 string 受け入れ — 過去バージョンが Date オブジェクトを
+  // stringifyYaml で書き戻した遺物（`2026-05-03T00:00:00.000Z` 等）を読み込めるようにする。
+  it("accepts ISO 8601 string for created and extracts YYYY-MM-DD prefix", () => {
+    const result = TaskFrontmatterSchema.safeParse({
+      ...baseValid,
+      created: "2026-05-03T00:00:00.000Z",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.created).toBe("2026-05-03");
+  });
+
+  it("accepts ISO 8601 string with timezone offset for due", () => {
+    const result = TaskFrontmatterSchema.safeParse({
+      ...baseValid,
+      due: "2026-05-30T15:30:00+09:00",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.due).toBe("2026-05-30");
+  });
+
+  it("accepts ISO 8601 string for completedAt (nullable date field)", () => {
+    const result = TaskFrontmatterSchema.safeParse({
+      ...baseValid,
+      completedAt: "2026-05-19T12:00:00.000Z",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.completedAt).toBe("2026-05-19");
+  });
+
+  it("rejects garbage string that does not start with YYYY-MM-DD", () => {
+    const result = TaskFrontmatterSchema.safeParse({ ...baseValid, created: "not-a-date" });
+    expect(result.success).toBe(false);
+  });
 });

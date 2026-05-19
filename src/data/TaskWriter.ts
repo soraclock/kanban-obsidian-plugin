@@ -116,6 +116,7 @@ export class TaskWriter {
         beforeStatus = typeof fm.status === "string" ? fm.status : undefined;
         fm.status = newStatus;
         fm.updated = todayYmd();
+        normalizeFrontmatterDates(fm);
       });
 
       const after = await this.app.vault.read(file);
@@ -162,6 +163,7 @@ export class TaskWriter {
         beforeOrder = typeof fm.order === "number" ? fm.order : undefined;
         fm.order = newOrder;
         fm.updated = todayYmd();
+        normalizeFrontmatterDates(fm);
       });
 
       const after = await this.app.vault.read(file);
@@ -214,6 +216,7 @@ export class TaskWriter {
         fm.status = newStatus;
         fm.order = newOrder;
         fm.updated = todayYmd();
+        normalizeFrontmatterDates(fm);
       });
 
       const after = await this.app.vault.read(file);
@@ -562,4 +565,39 @@ function todayYmd(): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+/**
+ * 日付フィールドの正規化対象キー。
+ *
+ * processFrontMatter callback 内で参照され、Date オブジェクトや ISO 8601 文字列が
+ * frontmatter に紛れていた場合に YYYY-MM-DD 形式に揃える。
+ *
+ * 背景: Obsidian の processFrontMatter は内部で js-yaml の parseYaml + stringifyYaml
+ * を回す。parseYaml は YAML 1.1 timestamp 互換で "2026-05-12" を Date オブジェクトに
+ * 自動変換し、stringifyYaml は Date を "2026-05-12T00:00:00.000Z" 形式で書き戻すため、
+ * 何もしないと updateStatus / updateOrder のたびに created / due / completedAt が
+ * ISO 8601 化されてファイル内容が劣化する。
+ */
+const NORMALIZED_DATE_FIELDS = ["created", "updated", "due", "completedAt"] as const;
+
+/**
+ * processFrontMatter callback 内で呼ぶ。Date / ISO 8601 文字列を YYYY-MM-DD に正規化。
+ * 値が null / undefined / 既に YYYY-MM-DD 文字列ならそのまま。
+ * Date の解釈は UTC（YAML parser が date-only literal を UTC midnight で生成するため）。
+ */
+function normalizeFrontmatterDates(fm: Record<string, unknown>): void {
+  for (const k of NORMALIZED_DATE_FIELDS) {
+    const v = fm[k];
+    if (v instanceof Date && !isNaN(v.getTime())) {
+      const y = v.getUTCFullYear();
+      const mo = String(v.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(v.getUTCDate()).padStart(2, "0");
+      fm[k] = `${y}-${mo}-${day}`;
+    } else if (typeof v === "string") {
+      // 先頭 YYYY-MM-DD だけ抽出（"2026-05-03T00:00:00.000Z" → "2026-05-03"）
+      const m = v.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (m && m[1] !== v) fm[k] = m[1];
+    }
+  }
 }
