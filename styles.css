@@ -2288,6 +2288,58 @@
   .kanban-root .kanban-recent-completed {
     flex-wrap: wrap;
   }
+
+  /* タッチデバイスでスクロールを優先する。
+     @dnd-kit がデフォルトで touch-action: none を当てるが、activationConstraint
+     を delay 指定したときは manipulation を許可してくれる仕様。
+     念のため明示的に manipulation を当てて、ブラウザ側のスクロール委譲を確実にする。 */
+  .kanban-root .kanban-card,
+  .kanban-root .kanban-list-card {
+    touch-action: manipulation;
+  }
+
+  /* 「+」新規タスク追加ボタンが 16x14px と極小で iPhone では押せない。
+     Apple HIG 推奨の 44pt タッチターゲットに合わせる。 */
+  .kanban-root .kanban-column-add {
+    width: 36px;
+    height: 36px;
+    font-size: 20px;
+    padding: 6px;
+  }
+
+  /* DetailPane のフィールド間隔が広すぎてスクロール量が増える問題への対応。
+     項目間 gap と padding を mobile では詰めて、1 画面に収まる情報量を増やす。 */
+  .kanban-root .kanban-detail-form {
+    gap: 6px;
+    padding: 6px 10px;
+  }
+  .kanban-root .kanban-field {
+    gap: 2px;
+  }
+  .kanban-root .kanban-field-label {
+    font-size: 11px;
+  }
+  .kanban-root .kanban-field input[type="text"],
+  .kanban-root .kanban-field select,
+  .kanban-root .kanban-field textarea,
+  .kanban-root .kanban-field input[type="date"] {
+    padding: 8px 10px;
+    font-size: 15px; /* iOS で 16px 未満だと拡大されるので 15 にしておく */
+    min-height: 38px;
+  }
+
+  /* DetailPane フッターが Obsidian モバイルのボトムツールバー（< > 🔍 + ≡）と
+     重なって「アーカイブへ移動」「保存」ボタンが押せない問題への対応。
+     ボトムバー高さ（約 56px）+ safe-area を考慮した余白をフッター下に追加。 */
+  .kanban-root .kanban-detail-footer {
+    padding-bottom: calc(70px + env(safe-area-inset-bottom, 0));
+    padding-top: 10px;
+  }
+  .kanban-root .kanban-detail-footer button {
+    min-height: 40px;
+    padding: 8px 14px;
+    font-size: 14px;
+  }
 }
 
 @media (max-width: 480px) {

@@ -253,15 +253,14 @@ export function Board({ app, ctx }: { app: App; ctx: PluginContext }) {
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      // モバイル（タッチ）: 500ms 長押し + 15px 許容で activate。
-      //   - delay 250ms だと「指を置いてゆっくり下に動かす」スクロールが
-      //     activate 発火に間に合ってしまい誤判定が起きた。500ms に伸ばして
-      //     iOS のリスト並べ替え (Reorder hold) と同等の感覚に合わせる。
-      //   - tolerance を 15px に広げて、軽く動かした瞬間にスクロール認識へ抜ける。
+      // モバイル（タッチ）: 700ms 長押し + 20px 許容で activate。
+      //   - 500ms でもまだスクロール失敗が出るので、iOS の長押し系コンテキスト
+      //     メニュー（約 700ms）と同等までさらに伸ばす。
+      //   - tolerance を 20px まで広げて、ゆっくり指を動かしてもスクロール認識へ抜ける。
       //   - tolerance を超えて動いた場合は activate せずスクロールとして扱われる。
       // デスクトップ（マウス）: 8px 移動で activate（誤発火・微震動を抑える）。
       activationConstraint: Platform.isMobile
-        ? { delay: 500, tolerance: 15 }
+        ? { delay: 700, tolerance: 20 }
         : { distance: 8 },
     }),
     // codex review (Critical) 反映: キーボード操作対応
