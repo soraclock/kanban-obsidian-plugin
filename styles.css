@@ -648,6 +648,8 @@
 }
 
 .kanban-root .kanban-field input[type="text"],
+.kanban-root .kanban-field input[type="number"],
+.kanban-root .kanban-field input[type="date"],
 .kanban-root .kanban-field select,
 .kanban-root .kanban-field textarea {
   width: 100%;
@@ -658,6 +660,25 @@
   border: 1px solid var(--background-modifier-border);
   border-radius: 4px;
   font-family: var(--font-interface);
+  box-sizing: border-box;
+  /* iOS Safari の select ネイティブ UI 抑制（指定 padding/height を尊重させる） */
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* select だけ ▼ 矢印を背景 SVG で再付与（appearance:none で消えるため） */
+.kanban-root .kanban-field select {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' width='12' height='8'><path fill='%23888' d='M0 0l6 8 6-8z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+}
+
+/* iOS で number input の spinner を非表示 */
+.kanban-root .kanban-field input[type="number"]::-webkit-inner-spin-button,
+.kanban-root .kanban-field input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 .kanban-root .kanban-field textarea {
   font-family: var(--font-monospace);
