@@ -2,12 +2,10 @@ import * as React from "react";
 import { useBoardStore, type CurrentView } from "../../store/boardStore";
 
 /**
- * Phase 8: 4 ビュー (ボード / 完了 / 凍結 / アーカイブ) のタブ切替バー。
+ * 3 ビュー (ボード / 完了 / 凍結) のタブ切替バー。
  * KanbanRoot の最上部に常駐し、どのビューからでも他ビューに 1 クリックで遷移できる。
  *
  * - 完了 / 凍結タブには件数バッジを表示 (アクティブ件数で滞留を可視化)
- * - アーカイブは物理移動済 (`_archive/`) で件数が大きく増えるため、ここでは件数を出さない
- *   (ArchiveView 自身が月別件数を出す)
  */
 interface TabDef {
   key: CurrentView;
@@ -18,7 +16,6 @@ const TABS: readonly TabDef[] = [
   { key: "board", label: "ボード" },
   { key: "completed", label: "完了" },
   { key: "frozen", label: "凍結" },
-  { key: "archive", label: "アーカイブ" },
 ];
 
 export function ViewTabs() {

@@ -176,147 +176,12 @@
   border-color: var(--interactive-accent);
 }
 
-.kanban-root .kanban-archive-open {
-  padding: 4px 10px;
-  font-size: var(--font-ui-smaller);
-  color: var(--text-muted);
-  background-color: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 4px;
-  cursor: pointer;
-}
-.kanban-root .kanban-archive-open:hover {
-  border-color: var(--interactive-accent);
-  color: var(--text-normal);
-}
-
 /* --- Phase 7 compact card (タイトル + meta だけ) --- */
 .kanban-root .kanban-card-compact {
   padding: 6px 10px;
 }
 .kanban-root .kanban-card-compact .kanban-card-title {
   margin-bottom: 2px;
-}
-
-/* --- Phase 7 ArchiveView (kanban view 内のアーカイブビュー) --- */
-.kanban-root .kanban-archive-view {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  padding: 12px 16px 16px 16px;
-  gap: 12px;
-  overflow-y: auto;
-}
-.kanban-root .kanban-archive-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.kanban-root .kanban-archive-h2 {
-  margin: 0;
-  font-size: var(--font-ui-medium);
-  font-weight: 600;
-}
-.kanban-root .kanban-archive-back,
-.kanban-root .kanban-archive-back-board {
-  padding: 4px 10px;
-  font-size: var(--font-ui-small);
-  background-color: var(--background-primary);
-  color: var(--text-normal);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 4px;
-  cursor: pointer;
-}
-.kanban-root .kanban-archive-back:hover,
-.kanban-root .kanban-archive-back-board:hover {
-  border-color: var(--interactive-accent);
-}
-.kanban-root .kanban-archive-back-board {
-  margin-left: auto;
-}
-.kanban-root .kanban-archive-empty {
-  color: var(--text-muted);
-  padding: 24px 0;
-  text-align: center;
-}
-
-/* 月一覧 (カード状にグリッド) */
-.kanban-root .kanban-archive-months {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 10px;
-}
-.kanban-root .kanban-archive-month-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 72px;
-  padding: 14px 16px;
-  background-color: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 6px;
-  cursor: pointer;
-  text-align: center;
-  font-family: inherit;
-}
-.kanban-root .kanban-archive-month-card:hover {
-  border-color: var(--interactive-accent);
-  background-color: var(--background-modifier-hover);
-}
-.kanban-root .kanban-archive-month-label {
-  font-size: var(--font-ui-small);
-  color: var(--text-normal);
-  font-weight: 600;
-  line-height: 1.2;
-  font-variant-numeric: tabular-nums;
-}
-.kanban-root .kanban-archive-month-count {
-  font-size: var(--font-ui-smaller);
-  color: var(--text-muted);
-  line-height: 1.2;
-  font-variant-numeric: tabular-nums;
-}
-
-/* 月内タスク一覧 */
-.kanban-root .kanban-archive-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.kanban-root .kanban-archive-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 4px;
-  background-color: var(--background-secondary);
-}
-.kanban-root .kanban-archive-main {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.kanban-root .kanban-archive-title {
-  font-weight: 500;
-  color: var(--text-normal);
-  word-break: break-all;
-}
-.kanban-root .kanban-archive-meta {
-  display: flex;
-  gap: 10px;
-  font-size: var(--font-ui-smaller);
-  color: var(--text-muted);
-  margin-top: 2px;
-}
-.kanban-root .kanban-archive-actions button {
-  padding: 4px 12px;
-  font-size: var(--font-ui-small);
-  border-radius: 4px;
-  cursor: pointer;
 }
 
 /* --- Board layout (左: kanban 列、右: DetailPane) --- */
@@ -815,12 +680,12 @@
 .kanban-root .kanban-detail-footer .kanban-detail-save:hover:not(:disabled) {
   background-color: var(--interactive-accent-hover);
 }
-.kanban-root .kanban-detail-footer .kanban-detail-archive {
+.kanban-root .kanban-detail-footer .kanban-detail-freeze {
   color: var(--text-muted);
 }
-.kanban-root .kanban-detail-footer .kanban-detail-archive:hover:not(:disabled) {
-  color: var(--text-error);
-  border-color: var(--text-error);
+.kanban-root .kanban-detail-footer .kanban-detail-freeze:hover:not(:disabled) {
+  color: var(--interactive-accent);
+  border-color: var(--interactive-accent);
 }
 
 /* --- Conflict banner --- */
@@ -2030,7 +1895,6 @@
   .kanban-root .kanban-focus-view,
   .kanban-root .kanban-completed-view,
   .kanban-root .kanban-frozen-view,
-  .kanban-root .kanban-archive-view,
   .kanban-root .kanban-stats-view,
   .kanban-root .kanban-calendar-view {
     padding-bottom: 64px;
@@ -2365,7 +2229,7 @@
   }
 
   /* DetailPane フッターが Obsidian モバイルのボトムツールバー（< > 🔍 + ≡）と
-     重なって「アーカイブへ移動」「保存」ボタンが押せない問題への対応。
+     重なって「凍結に移動」「保存」ボタンが押せない問題への対応。
      ボトムバー高さ（約 56px）+ safe-area を考慮した余白をフッター下に追加。 */
   .kanban-root .kanban-detail-footer {
     padding-bottom: calc(70px + env(safe-area-inset-bottom, 0));

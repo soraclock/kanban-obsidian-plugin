@@ -170,14 +170,6 @@ export default class KanbanPlugin extends Plugin {
       callback: () => this.recompactOrder(),
     });
 
-    this.addCommand({
-      id: "kanban-show-archived",
-      name: "Kanban: Show Archived",
-      callback: () => {
-        useBoardStore.getState().setCurrentView("archive");
-      },
-    });
-
     // Phase 10 (P3): 主要操作をコマンドパレット + ホットキー設定に登録。
     // Obsidian の hotkey 設定画面から任意のキーをバインド可能。
     this.addCommand({

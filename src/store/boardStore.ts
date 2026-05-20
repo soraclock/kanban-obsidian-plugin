@@ -24,14 +24,12 @@ export type ViewMode = "compact" | "detailed";
 export type LayoutMode = "board" | "list" | "focus" | "calendar" | "stats";
 
 /**
- * Phase 7: 画面切替。
- * Phase 8 でメインボードを active 3 列に絞り、completed / frozen を専用サブビューに分離。
+ * 画面切替。
  * - board: 未着手 / 進行中 / 確認待ち の 3 列
  * - completed: status=完了 のタスクを YYYY-MM セクションで一覧
  * - frozen: status=凍結 のタスクを縦リストで一覧
- * - archive: `_archive/` 配下に物理移動された月別アーカイブ
  */
-export type CurrentView = "board" | "completed" | "frozen" | "archive";
+export type CurrentView = "board" | "completed" | "frozen";
 
 export interface BoardFilter {
   /** 選択中の priority (複数選択 OR、空配列 = 全部) */
@@ -101,10 +99,8 @@ interface BoardState {
   filter: BoardFilter;
   /** Phase 7: カード表示モード (compact / detailed)。セッション内のみ保持 */
   viewMode: ViewMode;
-  /** Phase 7: 現在のビュー (board or archive)。アーカイブ閲覧用 */
+  /** 現在のビュー */
   currentView: CurrentView;
-  /** Phase 7: archive ビューで選択中の月 (YYYY-MM)。null = 月一覧、文字列 = その月のタスク一覧 */
-  archiveSelectedMonth: string | null;
 
   setTasks: (tasks: Task[]) => void;
   setLoading: (loading: boolean) => void;
@@ -117,7 +113,7 @@ interface BoardState {
    * 該当 filePath の task が無ければ追加、あれば置換。
    */
   upsertTask: (task: Task) => void;
-  /** Phase 3: filePath の task を store から削除（アーカイブ移動 / ファイル削除時） */
+  /** Phase 3: filePath の task を store から削除（ファイル削除時） */
   removeTask: (filePath: string) => void;
   /** Phase 3: DetailPane open / close */
   openDetail: (filePath: string) => void;
@@ -127,10 +123,8 @@ interface BoardState {
   resetFilter: () => void;
   /** Phase 7: viewMode 切替 */
   setViewMode: (mode: ViewMode) => void;
-  /** Phase 7: ボード / アーカイブビュー切替 */
+  /** ビュー切替 */
   setCurrentView: (view: CurrentView) => void;
-  /** Phase 7: archive ビューで選択中の月を切替 (null = 月一覧へ戻る) */
-  setArchiveSelectedMonth: (month: string | null) => void;
   /** Phase 9: ボード内レイアウトモード（board/list/focus/calendar/stats） */
   layoutMode: LayoutMode;
   /** Phase 9: layoutMode = focus のときに表示する 1 ステータス */
@@ -166,7 +160,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   filter: DEFAULT_FILTER,
   viewMode: "detailed",
   currentView: "board",
-  archiveSelectedMonth: null,
   layoutMode: "board",
   focusedStatus: "進行中",
   savedFilters: loadSavedFilters(),
@@ -200,15 +193,13 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   setViewMode: (mode) => set({ viewMode: mode }),
   setCurrentView: (view) => {
     const prev = get().currentView;
-    // ビュー切替時は archive 月選択を必ずクリア (board → archive 直開きで前回月が残るのを防ぐ)。
     // ビューが実際に変わるときだけ DetailPane も閉じる (同ビューのタブ再クリックで強制 close するのを避ける)。
     if (prev !== view) {
-      set({ currentView: view, archiveSelectedMonth: null, openDetailFilePath: null });
+      set({ currentView: view, openDetailFilePath: null });
     } else {
-      set({ currentView: view, archiveSelectedMonth: null });
+      set({ currentView: view });
     }
   },
-  setArchiveSelectedMonth: (month) => set({ archiveSelectedMonth: month }),
   setLayoutMode: (mode) => set({ layoutMode: mode }),
   setFocusedStatus: (status) => set({ focusedStatus: status }),
 

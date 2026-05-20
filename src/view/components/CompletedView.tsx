@@ -15,8 +15,6 @@ import { formatYmdForDisplay } from "../../util/dateFormat";
  *   未設定でも updated は必ず today に書かれているので必ず月 bucket に入る)
  * - 月の並びは新しい順、月内のタスクは日付の新しい順
  * - 各タスクに「未着手に戻す」「詳細を開く」のアクション
- * - 物理アーカイブ (`_archive/`) ではなく `tasks/` 直下に残ったままなので、
- *   月末の物理アーカイブ運用 (TaskWriter.archive) はこの画面の外
  */
 interface CompletedItem {
   task: Task;

@@ -73,7 +73,7 @@ function formPartsToSpec(parts: {
  * - 保存時 hash 検証 (ConflictError) → 衝突 UI で再読込 / 強制上書き / キャンセル を選択
  * - vault.on('modify') 経由で開いている task が外部編集された場合、ローカル未保存編集が
  *   無ければ自動で latest を取り込み、未保存編集があれば conflict banner を出す
- * - アーカイブボタンで `_archive/` へ移動
+ * - 凍結ボタンで status=凍結 へ遷移（凍結タブで管理）
  */
 type ModelValue = "opus" | "sonnet" | "haiku" | null;
 type Conflict = "external" | "save-failed" | null;
@@ -462,26 +462,45 @@ export function DetailPane({ ctx }: { ctx: PluginContext }) {
     }
   };
 
-  const onArchive = async (): Promise<void> => {
+  const onFreeze = async (): Promise<void> => {
     if (!task || !baselineHash) return;
-    if (!window.confirm(`「${task.title}」をアーカイブに移動しますか？`)) return;
+    if (dirty && !window.confirm("未保存の変更があります。変更は破棄して凍結のみ実行しますか？")) {
+      return;
+    }
+    setSaving(true);
     try {
-      // codex round 2: store 上の最新 hash でなく **baselineHash** (ユーザーが見ている版)
-      // を expectedHash に使う。外部編集後の古い表示でのアーカイブを防ぐ。
-      await ctx.taskWriter.archive(task.filePath, ctx.tasksDir, baselineHash);
-      new Notice("アーカイブに移動しました");
-      // ボードから即時削除（VaultWatcher は self-write を echo skip するため）
-      useBoardStore.getState().removeTask(task.filePath);
+      const result = await ctx.taskWriter.updateStatus(
+        task.filePath,
+        baselineHash,
+        "凍結",
+      );
+      ctx.history.push({
+        type: "status",
+        filePath: task.filePath,
+        before: { status: task.status },
+        after: { status: "凍結" },
+        afterHash: result.newHash,
+        ts: new Date().toISOString(),
+      });
+      new Notice("凍結に移動しました");
+      try {
+        const fresh = await ctx.taskRepository.readOne(task.filePath);
+        if (fresh) useBoardStore.getState().upsertTask(fresh);
+      } catch (e) {
+        console.warn("[kanban] post-freeze refresh failed:", e);
+      }
       closeDetail();
     } catch (e) {
       if (e instanceof ConflictError) {
-        new Notice("アーカイブ失敗: ファイルが他で変更されました");
+        new Notice("凍結失敗: ファイルが他で変更されました");
         setConflict("save-failed");
       } else {
         const msg = e instanceof Error ? e.message.slice(0, 80) : "不明なエラー";
-        new Notice(`アーカイブ失敗: ${msg}`);
+        new Notice(`凍結失敗: ${msg}`);
+        console.error("[kanban] freeze failed:", e);
       }
-      console.error("[kanban] archive failed:", e);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -841,14 +860,16 @@ export function DetailPane({ ctx }: { ctx: PluginContext }) {
       </div>
 
       <footer className="kanban-detail-footer">
-        <button
-          type="button"
-          className="kanban-detail-archive"
-          onClick={onArchive}
-          disabled={saving}
-        >
-          アーカイブへ移動
-        </button>
+        {task.status !== "完了" && task.status !== "凍結" && (
+          <button
+            type="button"
+            className="kanban-detail-freeze"
+            onClick={onFreeze}
+            disabled={saving}
+          >
+            凍結に移動
+          </button>
+        )}
         <div className="kanban-detail-footer-right">
           <button type="button" onClick={onCancel} disabled={saving}>
             キャンセル

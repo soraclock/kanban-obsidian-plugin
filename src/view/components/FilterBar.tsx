@@ -4,7 +4,6 @@ import { useBoardStore, type DueFilter, type LayoutMode } from "../../store/boar
 import { PRIORITY_VALUES, STATUS_VALUES, type Priority, type Status } from "../../data/TaskSchema";
 import { collectAllTags } from "../../data/TaskFilter";
 
-// Phase 8: 「一覧」(アーカイブ) ボタンは ViewTabs に統合したため、ここからは除去した。
 // Phase 9: ステータス絞り込みチップ + レイアウト切替を追加（board/list/focus）。
 
 const DUE_OPTIONS: { value: Exclude<DueFilter, null>; label: string }[] = [
