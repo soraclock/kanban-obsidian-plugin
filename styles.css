@@ -962,6 +962,25 @@
   font-weight: 400;
   color: var(--text-muted);
 }
+.kanban-root .kanban-completed-month-breakdown {
+  margin-left: 6px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  font-weight: 400;
+}
+.kanban-root .kanban-completed-row-recurring {
+  border-left: 3px solid var(--interactive-accent);
+}
+.kanban-root .kanban-completed-recurring-mark {
+  flex-shrink: 0;
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  margin-right: 4px;
+}
 .kanban-root .kanban-completed-rows {
   display: flex;
   flex-direction: column;

@@ -35,6 +35,23 @@ export function TaskListCard({ task, ctx }: { task: Task; ctx: PluginContext }) 
     try {
       const today = todayYmd();
       const beforeStatus = task.status;
+      // 定期タスク: 親常駐モデル → 履歴生成 + 親の due 更新 (Card.tsx と同じ分岐)
+      if (task.status === "定期" && task.recurrence) {
+        try {
+          const r = await ctx.recurrenceSpawner.completeRecurringInstance(task, today);
+          if (r) new Notice(`今回分を完了。次回期限: ${r.newDue}`);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message.slice(0, 80) : "不明なエラー";
+          new Notice(`定期タスクの完了処理に失敗: ${msg}`);
+          console.error("[kanban] complete recurring failed:", e);
+        }
+        requestReload();
+        return;
+      }
+      if (task.status === "定期" && !task.recurrence) {
+        new Notice("この定期タスクには繰り返し設定がありません。詳細画面で設定してください。");
+        return;
+      }
       const result = await ctx.taskWriter.updateStatus(
         task.filePath,
         task.contentHash,
@@ -48,16 +65,6 @@ export function TaskListCard({ task, ctx }: { task: Task; ctx: PluginContext }) 
         afterHash: result.newHash,
         ts: new Date().toISOString(),
       });
-      if (task.recurrence) {
-        try {
-          const r = await ctx.recurrenceSpawner.spawnIfRecurring(task, today);
-          if (r) new Notice(`次回タスクを作成: ${r.newId} (期限 ${r.newDue})`);
-        } catch (e) {
-          const msg = e instanceof Error ? e.message.slice(0, 80) : "不明なエラー";
-          new Notice(`定期タスクの次回生成に失敗: ${msg}`);
-          console.error("[kanban] recurrence spawn failed:", e);
-        }
-      }
       requestReload();
     } catch (e) {
       if (e instanceof ConflictError) {

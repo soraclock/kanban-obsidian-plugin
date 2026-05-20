@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const STATUS_VALUES = ["未着手", "進行中", "確認待ち", "完了", "凍結"] as const;
+export const STATUS_VALUES = ["定期", "未着手", "進行中", "確認待ち", "完了", "凍結"] as const;
 export type Status = (typeof STATUS_VALUES)[number];
 
 export const PRIORITY_VALUES = ["P0", "P1", "P2", "P3"] as const;

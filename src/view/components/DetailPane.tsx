@@ -433,32 +433,8 @@ export function DetailPane({ ctx }: { ctx: PluginContext }) {
       } catch (e) {
         console.warn("[kanban] post-save refresh failed:", e);
       }
-      // Phase 7: status が「完了」に変わり、source に recurrence があれば次回タスク生成
-      if (form.status === "完了" && task.status !== "完了") {
-        const rec = (task as Task & { recurrence?: string | null }).recurrence;
-        // idempotency: 同 recurrence + 同 title の未完了 task が既にあれば skip (二重 spawn 防止)
-        const existingSpawn = rec
-          ? useBoardStore.getState().tasks.find(
-              (t) =>
-                t.id !== task.id &&
-                t.title === task.title &&
-                t.status !== "完了" &&
-                (t as Task & { recurrence?: string | null }).recurrence === rec,
-            )
-          : undefined;
-        if (!existingSpawn) {
-          try {
-            const completedAtStr =
-              form.completedAt !== "" ? form.completedAt : new Date().toISOString().slice(0, 10);
-            const r = await ctx.recurrenceSpawner.spawnIfRecurring(task, completedAtStr);
-            if (r) new Notice(`次回タスクを作成: ${r.newId} (期限 ${r.newDue})`);
-          } catch (e) {
-            const msg = e instanceof Error ? e.message.slice(0, 80) : "不明なエラー";
-            new Notice(`定期タスクの次回生成に失敗: ${msg}`);
-            console.error("[kanban] recurrence spawn failed:", e);
-          }
-        }
-      }
+      // 定期タスクの履歴生成は Card 上の「今回分を完了」ボタン経由でのみ実行する。
+      // DetailPane で status を「定期 → 完了」に変えた場合は普通の status 変更扱い（履歴は作らない）。
     } catch (e) {
       if (e instanceof ConflictError) {
         setConflict("save-failed");

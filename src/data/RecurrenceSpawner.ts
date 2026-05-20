@@ -1,20 +1,22 @@
 import type { App, TFile } from "obsidian";
-import { stringifyFile } from "./Frontmatter";
+import { parseFile, stringifyFile } from "./Frontmatter";
 import type { Task } from "./Task";
 import { parseRecurrence, nextDueDate } from "./Recurrence";
 import { PathLock } from "./PathLock";
 import { isSafeRelativePath } from "./TaskWriter";
+import { sha256 } from "./ContentHash";
+import type { SelfWriteTracker } from "./SelfWriteTracker";
 
 /**
- * Phase 7: 定期タスクの次回インスタンス自動生成。
+ * 定期タスクの「今回分を完了」処理。
  *
- * 設計:
- * - 完了に遷移したタスクが `recurrence` を持っていれば、次回 due の新規 K-NNNN を作る
- * - 既存 source は historical record として残す (削除しない、status=完了 のまま)
- * - 新規タスク: status=未着手 / completedAt=null / order は列末尾追加 / subtasks は全て unchecked
+ * モデル変更（旧: 完了で子 spawn / 新: 親常駐 + 履歴インスタンス生成）:
+ * - 親（status=定期）はそのまま列に残り、due を次回に更新、subtasks は全 unchecked にリセット
+ * - 履歴インスタンスを別 ID (K-NNNN) の独立ファイルとして作る (status=完了 / recurrence=null / completedAt=今日)
+ *   → 完了タブで月別に「定期タスクで何を達成したか」を確認できる
+ * - 履歴ファイル名: `K-NNNN-<slug>-YYYY-MM-DD.md` で日付サフィックスを付ける（同月内の複数完了でも衝突回避）
  * - ID 採番: `_README.md` の「次のID: K-NNNN」を read → +1 して write back
- * - 同名衝突: K-NNNN は zero-pad、衝突したら +1 再採番 (最大 100 回)
- * - _README.md と新規ファイル作成は PathLock 経由で直列化
+ * - 親更新 + 履歴作成 + _README.md 更新 は PathLock 経由で直列化
  */
 export interface SpawnResult {
   newId: string;
@@ -30,9 +32,17 @@ export class RecurrenceSpawner {
     private readonly app: App,
     private readonly tasksDir: string,
     private readonly pathLock: PathLock,
+    private readonly selfWriteTracker?: SelfWriteTracker,
   ) {}
 
-  async spawnIfRecurring(source: Task, completedAt: string): Promise<SpawnResult | null> {
+  /**
+   * 定期タスクの「今回分を完了」処理。
+   * 親はそのまま、履歴インスタンスを作って親の due を次回に更新する。
+   */
+  async completeRecurringInstance(
+    source: Task,
+    completedAt: string,
+  ): Promise<SpawnResult | null> {
     const recRaw = (source as unknown as { recurrence?: string | null }).recurrence;
     if (!recRaw) return null;
     const rec = parseRecurrence(recRaw);
@@ -54,16 +64,16 @@ export class RecurrenceSpawner {
       }
       let next = parseInt(m[1]!, 10);
 
-      // 2. 衝突しない ID を探索 (最大 100 回)
+      // 2. 衝突しない ID を探索 (最大 100 回)。履歴は日付サフィックスを付けて同月複数回の衝突も回避。
       const slug = this.extractSlug(source.filePath) ?? "recurring";
       let candidateId: string;
       let candidatePath: string;
       let tries = 0;
       while (true) {
         candidateId = "K-" + String(next).padStart(4, "0");
-        candidatePath = `${this.tasksDir}/${candidateId}-${slug}.md`;
+        candidatePath = `${this.tasksDir}/${candidateId}-${slug}-${completedAt}.md`;
         if (!isSafeRelativePath(candidatePath) || !candidatePath.startsWith(this.tasksDir + "/")) {
-          throw new Error(`invalid spawn path: ${candidatePath}`);
+          throw new Error(`invalid history path: ${candidatePath}`);
         }
         if (!(await this.app.vault.adapter.exists(candidatePath))) break;
         next += 1;
@@ -71,11 +81,17 @@ export class RecurrenceSpawner {
         if (tries > 100) throw new Error("[recurrence] ID 採番が 100 回連続で衝突");
       }
 
-      // 3. 新規 task の frontmatter + body を構築
-      const newContent = buildNewTaskContent(source, candidateId, newDue, recRaw);
+      // 3. 履歴インスタンスを作成 (status=完了, recurrence=null, completedAt=今日)
+      const historyContent = buildHistoryTaskContent(source, candidateId, completedAt);
+      await this.app.vault.create(candidatePath, historyContent);
+      // VaultWatcher の echo 二重発火を防ぐため、新規作成ファイルも SelfWriteTracker に登録
+      this.selfWriteTracker?.markSelf(candidatePath, sha256(historyContent));
 
-      // 4. 新規ファイル作成
-      await this.app.vault.create(candidatePath, newContent);
+      // 4. 親ファイルの due / subtasks / updated を更新 (status は「定期」のまま)。
+      // 親 path も PathLock で直列化して外部 write との衝突を最小化する。
+      await this.pathLock.with(source.filePath, () =>
+        this.updateParentTask(source.filePath, newDue, completedAt),
+      );
 
       // 5. _README.md の次のID を更新
       const updatedReadme = readmeText.replace(
@@ -86,6 +102,32 @@ export class RecurrenceSpawner {
 
       return { newId: candidateId, newFilePath: candidatePath, newDue };
     });
+  }
+
+  /**
+   * 旧 API 互換 (Card.tsx / DetailPane.tsx での移行期間)。
+   * status=定期 のタスクなら新モデル (履歴 + 親更新) を実行、それ以外は null を返す。
+   * 旧モデル（完了→子 spawn）は v0.2.0 で撤廃した。
+   */
+  async spawnIfRecurring(source: Task, completedAt: string): Promise<SpawnResult | null> {
+    if (source.status !== "定期") return null;
+    return this.completeRecurringInstance(source, completedAt);
+  }
+
+  private async updateParentTask(filePath: string, newDue: string, today: string): Promise<void> {
+    const file = this.getTFile(filePath);
+    const before = await this.app.vault.read(file);
+    const parsed = parseFile(before);
+    const data: Record<string, unknown> = { ...parsed.data };
+    data.due = newDue;
+    data.updated = today;
+    // status=定期 のまま、completedAt は親には書かない (履歴側に記録)
+    // subtasks を本文中で全 unchecked に戻す
+    const resetBody = parsed.content.replace(/(-\s*\[)[xX](\])/g, "$1 $2");
+    const newContent = stringifyFile(resetBody, data);
+    await this.app.vault.modify(file, newContent);
+    // VaultWatcher の自己 write echo を抑止して二重 reload を防ぐ
+    this.selfWriteTracker?.markSelf(filePath, sha256(newContent));
   }
 
   private getTFile(filePath: string): TFile {
@@ -107,48 +149,37 @@ export class RecurrenceSpawner {
 }
 
 /**
- * source の frontmatter + body から、次回インスタンス用の content を作る。
- * - status: 未着手 にリセット
- * - due: newDue
- * - completedAt: null
- * - subtasks: 全 unchecked
- * - recurrence: 同じ書式を引き継ぎ
- * - id / filePath は新規
- * - created / updated は今日
+ * 履歴インスタンスの content を作る。
+ * - status: 完了
+ * - completedAt: 今日
+ * - recurrence: null (履歴は繰り返さない)
+ * - due: 親と同じ（その回の予定だった日付）
+ * - subtasks: 親と同じ状態（完了時点の記録）
+ * - recurringHistoryOf: 親の ID (完了タブで視覚マーキングに使う)
  */
-export function buildNewTaskContent(
+export function buildHistoryTaskContent(
   source: Task,
   newId: string,
-  newDue: string,
-  recurrenceSpec: string,
+  completedAt: string,
 ): string {
-  const today = ymdLocal(new Date());
   const data: Record<string, unknown> = {
     id: newId,
     title: source.title,
-    status: "未着手",
+    status: "完了",
     assignee: source.assignee,
     priority: source.priority,
-    due: newDue,
+    due: source.due ?? null,
     model: source.model ?? null,
-    created: today,
-    updated: today,
+    created: completedAt,
+    updated: completedAt,
     tags: source.tags,
     related: source.related ?? [],
-    completedAt: null,
+    completedAt,
     estimateHours: (source as unknown as { estimateHours?: number | null }).estimateHours ?? null,
-    actualHours: null, // 実績は引き継がない
-    recurrence: recurrenceSpec,
+    actualHours: (source as unknown as { actualHours?: number | null }).actualHours ?? null,
+    recurrence: null,
+    // 履歴インスタンスのマーカー（完了タブで定期履歴を区別表示するため）
+    recurringHistoryOf: source.id,
   };
-  // 末尾 order は呼び出し側で再 sort 不要 (新規 reload で自然に末尾になる)
-  // body markdown: source の本文中の `- [x]` を `- [ ]` に置換して unchecked にする
-  const resetBody = source.bodyMarkdown.replace(/(-\s*\[)[xX](\])/g, "$1 $2");
-  return stringifyFile(resetBody, data);
-}
-
-function ymdLocal(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return stringifyFile(source.bodyMarkdown, data);
 }

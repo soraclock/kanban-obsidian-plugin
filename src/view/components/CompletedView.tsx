@@ -115,17 +115,45 @@ export function CompletedView({ ctx }: { ctx: PluginContext }) {
         <p className="kanban-subview-empty">完了タスクはまだありません。</p>
       ) : (
         <div className="kanban-completed-list">
-          {grouped.map(([month, items]) => (
+          {grouped.map(([month, items]) => {
+            const recurringCount = items.filter(
+              ({ task }) =>
+                (task as Task & { recurringHistoryOf?: string }).recurringHistoryOf != null,
+            ).length;
+            const normalCount = items.length - recurringCount;
+            return (
             <section key={month} className="kanban-completed-month">
               <h3 className="kanban-completed-month-h3">
                 {formatYearMonthLabel(month)}
-                <span className="kanban-completed-month-count">{items.length} 件</span>
+                <span className="kanban-completed-month-count">
+                  {items.length} 件
+                  {recurringCount > 0 && (
+                    <span className="kanban-completed-month-breakdown">
+                      （通常 {normalCount} 件 + 定期 {recurringCount} 件）
+                    </span>
+                  )}
+                </span>
               </h3>
               <div className="kanban-completed-rows">
-                {items.map(({ task, dateYmd }) => (
-                  <div key={task.filePath} className="kanban-completed-row">
+                {items.map(({ task, dateYmd }) => {
+                  const isRecurringHistory =
+                    (task as Task & { recurringHistoryOf?: string }).recurringHistoryOf != null;
+                  return (
+                  <div
+                    key={task.filePath}
+                    className={`kanban-completed-row ${isRecurringHistory ? "kanban-completed-row-recurring" : ""}`}
+                  >
                     <div className="kanban-completed-main">
                       <div className="kanban-completed-title">
+                        {isRecurringHistory && (
+                          <span
+                            className="kanban-completed-recurring-mark"
+                            title="定期タスクの履歴"
+                            aria-label="定期タスクの履歴"
+                          >
+                            定期
+                          </span>
+                        )}
                         <span className="kanban-completed-id">{task.id}</span>
                         <span className="kanban-completed-text">{task.title}</span>
                       </div>
@@ -169,10 +197,12 @@ export function CompletedView({ ctx }: { ctx: PluginContext }) {
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

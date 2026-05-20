@@ -12,11 +12,13 @@ function makeReadme(nextNum: number): string {
   return `# タスクボード\n\n次のID: **K-${String(nextNum).padStart(4, "0")}**\n`;
 }
 
-function makeSourceTask(overrides: Partial<Task & { recurrence?: string | null; estimateHours?: number | null }> = {}): Task & { recurrence?: string | null; estimateHours?: number | null } {
+function makeSourceTask(
+  overrides: Partial<Task & { recurrence?: string | null; estimateHours?: number | null }> = {},
+): Task & { recurrence?: string | null; estimateHours?: number | null } {
   return {
     id: "K-0005",
     title: "週次レビュー",
-    status: "完了",
+    status: "定期",
     assignee: "花木",
     priority: "P1",
     due: "2026-05-11",
@@ -38,9 +40,18 @@ function makeSourceTask(overrides: Partial<Task & { recurrence?: string | null; 
   };
 }
 
+/**
+ * 親ファイル (status=定期) も vault に登録した状態で fake app を作る。
+ * RecurrenceSpawner.updateParentTask が parent を read/modify するため、
+ * テストで実際に親ファイルが存在する必要がある。
+ */
 function buildEnv(extraFiles: Record<string, string> = {}) {
+  const source = makeSourceTask();
+  const parentContent =
+    "---\nid: K-0005\ntitle: 週次レビュー\nstatus: 定期\nassignee: 花木\npriority: P1\ndue: 2026-05-11\nrecurrence: weekly:mon\ntags: [weekly]\nrelated: []\ncreated: 2026-05-01\nupdated: 2026-05-11\norder: 5\nestimateHours: 2\n---\n\n## サブタスク\n\n- [x] 完了済み\n- [x] これも済み\n";
   const { app, files } = makeFakeApp({
     [README_PATH]: makeReadme(6),
+    [source.filePath]: parentContent,
     ...extraFiles,
   });
   const pathLock = new PathLock();
@@ -48,107 +59,116 @@ function buildEnv(extraFiles: Record<string, string> = {}) {
   return { app, files, spawner };
 }
 
-describe("RecurrenceSpawner integration", () => {
-  it("case 1: 正常 spawn (weekly:mon) → 次回 due が翌週月曜", async () => {
-    const { spawner } = buildEnv();
+describe("RecurrenceSpawner (新モデル: 履歴生成 + 親 due 更新)", () => {
+  it("case 1: weekly:mon の親を完了 → 履歴 K-NNNN 生成 + 親の due が翌週月曜に", async () => {
+    const { files, spawner } = buildEnv();
     const source = makeSourceTask({ due: "2026-05-11" }); // 2026-05-11 は月曜
 
-    const result = await spawner.spawnIfRecurring(source, "2026-05-11");
+    const result = await spawner.completeRecurringInstance(source, "2026-05-11");
 
     expect(result).not.toBeNull();
     expect(result!.newDue).toBe("2026-05-18"); // 翌週月曜
+    // 親ファイルの due が翌週月曜に更新されている
+    const parentParsed = matter(files[source.filePath]!);
+    expect(parentParsed.data.due).toBe("2026-05-18");
+    // 親の status は「定期」のまま
+    expect(parentParsed.data.status).toBe("定期");
   });
 
-  it("case 2: ID 採番 — _README.md を読んで K-0006 を作成し K-0007 に更新", async () => {
+  it("case 2: ID 採番 — _README.md を読んで K-0006 を履歴として作成し K-0007 に更新", async () => {
     const { files, spawner } = buildEnv();
     const source = makeSourceTask();
 
-    const result = await spawner.spawnIfRecurring(source, "2026-05-11");
+    const result = await spawner.completeRecurringInstance(source, "2026-05-11");
 
     expect(result!.newId).toBe("K-0006");
     expect(result!.newFilePath).toContain("K-0006-");
+    expect(result!.newFilePath).toContain("2026-05-11"); // 日付サフィックス
     expect(files[result!.newFilePath]).toBeDefined();
-    // _README.md が K-0007 に更新されている
     expect(files[README_PATH]).toContain("K-0007");
   });
 
-  it("case 3: subtask reset — source の [x] が [ ] に変換される", async () => {
+  it("case 3: 履歴は status=完了 / recurrence=null / completedAt=今日", async () => {
     const { files, spawner } = buildEnv();
     const source = makeSourceTask();
 
-    const result = await spawner.spawnIfRecurring(source, "2026-05-11");
+    const result = await spawner.completeRecurringInstance(source, "2026-05-11");
 
-    const newContent = files[result!.newFilePath]!;
-    expect(newContent).toContain("- [ ] 完了済み");
-    expect(newContent).toContain("- [ ] これも済み");
-    expect(newContent).not.toContain("- [x]");
+    const parsed = matter(files[result!.newFilePath]!);
+    expect(parsed.data.status).toBe("完了");
+    expect(parsed.data.recurrence).toBeNull();
+    expect(parsed.data.completedAt).toBe("2026-05-11");
+    expect(parsed.data.recurringHistoryOf).toBe("K-0005");
   });
 
-  it("case 4: completedAt=null + actualHours=null — 実績は引き継がない", async () => {
+  it("case 4: 親の subtasks が unchecked にリセットされる", async () => {
     const { files, spawner } = buildEnv();
     const source = makeSourceTask();
 
-    const result = await spawner.spawnIfRecurring(source, "2026-05-11");
+    await spawner.completeRecurringInstance(source, "2026-05-11");
 
-    const parsed = matter(files[result!.newFilePath]!);
-    expect(parsed.data.completedAt).toBeNull();
-    expect(parsed.data.actualHours).toBeNull();
-    expect(parsed.data.status).toBe("未着手");
+    const parentContent = files[source.filePath]!;
+    expect(parentContent).toContain("- [ ] 完了済み");
+    expect(parentContent).toContain("- [ ] これも済み");
+    expect(parentContent).not.toContain("- [x]");
   });
 
-  it("case 5: recurrence + estimateHours は引き継ぐ", async () => {
+  it("case 5: estimateHours / actualHours は履歴に引き継ぐ（その回の実績記録）", async () => {
     const { files, spawner } = buildEnv();
-    const source = makeSourceTask({ estimateHours: 2, recurrence: "weekly:mon" });
-
-    const result = await spawner.spawnIfRecurring(source, "2026-05-11");
-
-    const parsed = matter(files[result!.newFilePath]!);
-    expect(parsed.data.recurrence).toBe("weekly:mon");
-    expect(parsed.data.estimateHours).toBe(2);
-  });
-
-  it("case 6: slug サニタイズ — `/` や `..` は `-` に置換", async () => {
-    const { files, spawner } = buildEnv();
-    // ファイル名に / や .. が入ったスラグを持つソース
     const source = makeSourceTask({
-      filePath: `${TASKS_DIR}/K-0005-foo-bar.md`,
+      estimateHours: 2,
+      // actualHours は overrides で受けるパターン
     });
+    (source as unknown as { actualHours?: number | null }).actualHours = 1.5;
 
-    const result = await spawner.spawnIfRecurring(source, "2026-05-11");
+    const result = await spawner.completeRecurringInstance(source, "2026-05-11");
 
-    // 結果のパスに / や .. が含まれないこと
-    const newPath = result!.newFilePath;
-    const fileName = newPath.split("/").pop()!;
+    const parsed = matter(files[result!.newFilePath]!);
+    expect(parsed.data.estimateHours).toBe(2);
+    expect(parsed.data.actualHours).toBe(1.5);
+  });
+
+  it("case 6: slug サニタイズ — ファイル名に危険文字を含まない", async () => {
+    const { spawner } = buildEnv({
+      [`${TASKS_DIR}/K-0005-foo-bar.md`]:
+        "---\nid: K-0005\nstatus: 定期\nrecurrence: weekly:mon\ndue: 2026-05-11\n---\n",
+    });
+    const source = makeSourceTask({ filePath: `${TASKS_DIR}/K-0005-foo-bar.md` });
+
+    const result = await spawner.completeRecurringInstance(source, "2026-05-11");
+
+    const fileName = result!.newFilePath.split("/").pop()!;
     expect(fileName).not.toContain("..");
     expect(fileName.split("/")).toHaveLength(1);
   });
 
-  it("case 7: path validation — isSafeRelativePath で守られている", async () => {
-    // tasksDir に危険なパスを渡すと spawn 失敗する
+  it("case 7: path validation — tasksDir が不正なら _README.md が見つからずエラー", async () => {
     const { app, files } = makeFakeApp({ [README_PATH]: makeReadme(6) });
     const pathLock = new PathLock();
-    // tasksDir に `..` を含む危険なパス
     const spawner = new RecurrenceSpawner(app as never, "../evil", pathLock);
     const source = makeSourceTask();
 
-    // spawnIfRecurring 内で _README.md 取得が失敗する（file not found）
-    await expect(spawner.spawnIfRecurring(source, "2026-05-11")).rejects.toThrow();
-    void files; // suppress unused warning
+    await expect(spawner.completeRecurringInstance(source, "2026-05-11")).rejects.toThrow();
+    void files;
   });
 
-  it("case 8: recurrence null/invalid なら spawn しない (null を返す)", async () => {
+  it("case 8: recurrence null/invalid なら null を返す", async () => {
     const { spawner } = buildEnv();
 
-    // recurrence null
     const sourceNull = makeSourceTask({ recurrence: null });
-    expect(await spawner.spawnIfRecurring(sourceNull, "2026-05-11")).toBeNull();
+    expect(await spawner.completeRecurringInstance(sourceNull, "2026-05-11")).toBeNull();
 
-    // recurrence 未設定 (undefined)
     const sourceUndef = makeSourceTask({ recurrence: undefined });
-    expect(await spawner.spawnIfRecurring(sourceUndef, "2026-05-11")).toBeNull();
+    expect(await spawner.completeRecurringInstance(sourceUndef, "2026-05-11")).toBeNull();
 
-    // recurrence 不正書式
     const sourceBad = makeSourceTask({ recurrence: "invalid-spec" });
-    expect(await spawner.spawnIfRecurring(sourceBad, "2026-05-11")).toBeNull();
+    expect(await spawner.completeRecurringInstance(sourceBad, "2026-05-11")).toBeNull();
+  });
+
+  it("case 9: spawnIfRecurring は status=定期 でないタスクに対しては null を返す（旧 API 互換）", async () => {
+    const { spawner } = buildEnv();
+    // 既存仕様変更点: 旧モデルでは status 不問だったが、新モデルでは「定期」のみ受け付ける
+    const source = makeSourceTask({ status: "完了" });
+    expect(await spawner.spawnIfRecurring(source, "2026-05-11")).toBeNull();
   });
 });

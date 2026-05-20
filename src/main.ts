@@ -105,8 +105,13 @@ export default class KanbanPlugin extends Plugin {
     // Phase 5: AiTaskGateway
     this.aiTaskGateway = new AiTaskGateway(this.taskWriter);
 
-    // Phase 7: 定期タスクの次回自動生成
-    this.recurrenceSpawner = new RecurrenceSpawner(this.app, tasksDir, this.pathLock);
+    // 定期タスクの「今回分を完了」処理 (履歴インスタンス生成 + 親 due 更新)
+    this.recurrenceSpawner = new RecurrenceSpawner(
+      this.app,
+      tasksDir,
+      this.pathLock,
+      this.selfWriteTracker,
+    );
 
     // Phase 7 (タスク追加): 各列の「+」ボタンから新規タスクを作成する
     this.taskCreator = new TaskCreator(
@@ -251,12 +256,48 @@ export default class KanbanPlugin extends Plugin {
     // Phase 10 (P0): 起動時の期限通知。layout 完了後に 1 回だけ実行し、当日中は再通知しない。
     this.app.workspace.onLayoutReady(() => {
       void this.runDueDateNotice();
+      void this.migrateRecurringTasksToScheduledStatus();
     });
 
     console.log("[kanban] plugin loaded.", {
       mobile: Platform.isMobile,
       legacyLocked: this.legacyLockToken != null,
     });
+  }
+
+  /**
+   * recurrence を持つアクティブタスク (status=未着手/進行中/確認待ち) を status=定期 に移行する。
+   * data.json の recurringMigrationDone フラグで 1 度だけ実行。
+   * 完了/凍結タスクは履歴として尊重し書き換えない。
+   */
+  private async migrateRecurringTasksToScheduledStatus(): Promise<void> {
+    if (!this.taskRepository || !this.taskWriter) return;
+    try {
+      const data = ((await this.loadData()) ?? {}) as Record<string, unknown>;
+      if (data.recurringMigrationDone === true) return;
+      const { tasks } = await this.taskRepository.listAll();
+      const targets = tasks.filter((t) => {
+        const tx = t as typeof t & { recurrence?: string | null };
+        if (!tx.recurrence) return false;
+        return t.status === "未着手" || t.status === "進行中" || t.status === "確認待ち";
+      });
+      let migrated = 0;
+      for (const t of targets) {
+        try {
+          await this.taskWriter.updateStatus(t.filePath, t.contentHash, "定期");
+          migrated++;
+        } catch (e) {
+          console.warn(`[kanban] migration skipped: ${t.filePath}`, e);
+        }
+      }
+      await this.saveData({ ...data, recurringMigrationDone: true });
+      if (migrated > 0) {
+        new Notice(`定期タスク ${migrated} 件を「定期」列に移しました`);
+        useBoardStore.getState().requestReload();
+      }
+    } catch (e) {
+      console.warn("[kanban] recurring migration failed:", e);
+    }
   }
 
   /**

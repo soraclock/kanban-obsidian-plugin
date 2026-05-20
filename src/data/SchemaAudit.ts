@@ -37,6 +37,8 @@ const KNOWN_KEYS = new Set([
   "actualHours",
   "boardId",
   "completedAt",
+  "recurrence",
+  "recurringHistoryOf",
 ]);
 
 // 防御パラメータは Constants に集約（TaskRepository でも再利用）

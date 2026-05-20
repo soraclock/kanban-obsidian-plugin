@@ -119,33 +119,6 @@ function getPointerY(event: DragEndEvent): number | null {
 }
 
 /**
- * Phase 7: status=完了 への遷移後に recurrence があれば次回 K-NNNN を自動生成する。
- * Notice で結果を通知。失敗時はエラーログのみ (元の完了処理自体は成功扱い)。
- */
-async function spawnRecurrenceIfAny(ctx: PluginContext, source: Task): Promise<void> {
-  const rec = source.recurrence;
-  if (!rec) return;
-  // idempotency: 同 recurrence + 同 title の未完了 task が既にあれば skip (二重 spawn 防止)
-  const existing = useBoardStore.getState().tasks.find(
-    (t) =>
-      t.id !== source.id &&
-      t.title === source.title &&
-      t.status !== "完了" &&
-      t.recurrence === rec,
-  );
-  if (existing) return;
-  try {
-    const completedAt = new Date().toISOString().slice(0, 10);
-    const r = await ctx.recurrenceSpawner.spawnIfRecurring(source, completedAt);
-    if (r) new Notice(`次回タスクを作成: ${r.newId} (期限 ${r.newDue})`);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message.slice(0, 80) : "不明なエラー";
-    new Notice(`定期タスクの次回生成に失敗: ${msg}`);
-    console.error("[kanban] recurrence spawn failed:", e);
-  }
-}
-
-/**
  * KeyboardSensor 経路の before/after を delta.y 方向で判定する (codex review #3 反映)。
  * - pointer がある場合は null を返し pointer 判定に任せる
  * - キーボード操作で y 方向に動きがあれば最終の delta.y 符号を採用 (見た目の上下に一致)
@@ -307,6 +280,26 @@ export function Board({ app, ctx }: { app: App; ctx: PluginContext }) {
       | { type?: "column" | "card"; status?: Status; task?: Task }
       | undefined;
 
+    // 定期タスクは「今回分を完了」ボタン経由のみ運用。DnD で他列に移すと履歴生成が回らず
+    // データ整合が壊れるため、定期 → 他列のドラッグは禁止する。
+    if (
+      activeTaskNow.status === "定期" &&
+      overData?.type === "column" &&
+      overData.status !== "定期"
+    ) {
+      new Notice("定期タスクは「今回分を完了」ボタンから操作してください");
+      return;
+    }
+    if (
+      activeTaskNow.status === "定期" &&
+      overData?.type === "card" &&
+      overData.task &&
+      overData.task.status !== "定期"
+    ) {
+      new Notice("定期タスクは「今回分を完了」ボタンから操作してください");
+      return;
+    }
+
     try {
       if (overData?.type === "column") {
         const newStatus = overData.status!;
@@ -326,9 +319,8 @@ export function Board({ app, ctx }: { app: App; ctx: PluginContext }) {
           afterHash: result.newHash,
           ts: new Date().toISOString(),
         });
-        if (newStatus === "完了") {
-          await spawnRecurrenceIfAny(ctx, activeTaskNow);
-        }
+        // newStatus=完了 への DnD は普通タスクのみ通る (定期は上のガードで弾かれる)。
+        // 旧モデルで残っていた completed-recurrence の二重 spawn 処理は新モデルでは不要。
       } else if (overData?.type === "card" && overData.task) {
         const overTask = overData.task;
         // 花木 FB 反映: 見た目 (= pointer) と判定を一致させるため、PointerSensor では
@@ -380,9 +372,7 @@ export function Board({ app, ctx }: { app: App; ctx: PluginContext }) {
             overTask.status,
             newOrder,
           );
-          if (overTask.status === "完了") {
-            await spawnRecurrenceIfAny(ctx, activeTaskNow);
-          }
+          // 完了列へのカード上 drop: 定期は上のガードで弾かれているため、ここでは普通タスクのみ。
           ctx.history.push({
             type: "compound",
             filePath: activeTaskNow.filePath,

@@ -65,8 +65,12 @@ export function CardView({
         <button
           type="button"
           className="kanban-card-complete"
-          aria-label={`${task.title} を完了にする`}
-          title="完了にする"
+          aria-label={
+            task.status === "定期"
+              ? `${task.title} の今回分を完了にする`
+              : `${task.title} を完了にする`
+          }
+          title={task.status === "定期" ? "今回分を完了にする" : "完了にする"}
           // DnD の PointerSensor が拾わないよう pointer 系を全部 stop。
           // また Card wrapper の onClick (openDetail) も stop する。
           onPointerDown={(e) => e.stopPropagation()}
@@ -176,10 +180,30 @@ export function Card({ task, ctx }: { task: Task; ctx: PluginContext }) {
     try {
       const today = todayYmd();
       const beforeStatus = task.status;
-      // updateStatus を使うことで既存の Undo 経路 (main.undoLast の "status" 分岐) に
-      // そのまま乗る。completedAt は完了時点で別途立てたいが OperationHistory が現状
-      // status/order しか保持しないため、ここでは updated=today への自動反映に任せる。
-      // CompletedView 側は completedAt → updated の順でフォールバックして月セクションを決める。
+      // status=定期 のタスクは「今回分を完了」モード。
+      // 親（status=定期）はそのまま列に残し、履歴インスタンスを別 K-NNNN で生成して
+      // 親の due を次回に更新する。
+      if (task.status === "定期" && task.recurrence) {
+        try {
+          const r = await ctx.recurrenceSpawner.completeRecurringInstance(task, today);
+          if (r) {
+            new Notice(`今回分を完了。次回期限: ${r.newDue}`);
+          } else {
+            new Notice("定期タスクの完了処理に失敗（recurrence が不正な可能性）");
+          }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message.slice(0, 80) : "不明なエラー";
+          new Notice(`定期タスクの完了処理に失敗: ${msg}`);
+          console.error("[kanban] complete recurring failed:", e);
+        }
+        requestReload();
+        return;
+      }
+      if (task.status === "定期" && !task.recurrence) {
+        new Notice("この定期タスクには繰り返し設定がありません。詳細画面で設定してください。");
+        return;
+      }
+      // 通常タスク: updateStatus で status=完了 にする (Undo 経路に乗せる)。
       const result = await ctx.taskWriter.updateStatus(
         task.filePath,
         task.contentHash,
@@ -193,17 +217,6 @@ export function Card({ task, ctx }: { task: Task; ctx: PluginContext }) {
         afterHash: result.newHash,
         ts: new Date().toISOString(),
       });
-      // recurrence があれば次回 K-NNNN を spawn (Board.handleDragEnd と同じ挙動)
-      if (task.recurrence) {
-        try {
-          const r = await ctx.recurrenceSpawner.spawnIfRecurring(task, today);
-          if (r) new Notice(`次回タスクを作成: ${r.newId} (期限 ${r.newDue})`);
-        } catch (e) {
-          const msg = e instanceof Error ? e.message.slice(0, 80) : "不明なエラー";
-          new Notice(`定期タスクの次回生成に失敗: ${msg}`);
-          console.error("[kanban] recurrence spawn failed:", e);
-        }
-      }
       requestReload();
     } catch (e) {
       if (e instanceof ConflictError) {
