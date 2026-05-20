@@ -1,5 +1,6 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { App } from "obsidian";
 import { Notice, Platform } from "obsidian";
 import {
@@ -558,17 +559,24 @@ export function Board({ app, ctx }: { app: App; ctx: PluginContext }) {
         </div>
         <DetailPane ctx={ctx} />
       </div>
-      <DragOverlay
-        // codex review #5 反映: cancel / conflict 時の戻りを視認しやすくする短い animation
-        dropAnimation={{ duration: 160, easing: "cubic-bezier(0.2, 0, 0, 1)" }}
-      >
-        {activeTask ? (
-          // aria-hidden で screen reader の二重読み上げを防ぐ (codex review 反映)
-          <div aria-hidden="true">
-            <CardView task={activeTask} isOverlay compact={viewMode === "compact"} />
-          </div>
-        ) : null}
-      </DragOverlay>
+      {/* Obsidian workspace の祖先要素に transform が掛かっている可能性があるため、
+       * DragOverlay (position: fixed) の containing block が viewport ではなく祖先になり
+       * カードが横方向にずれる。createPortal で document.body 直下に出して
+       * containing block を viewport に固定する。 */}
+      {createPortal(
+        <DragOverlay
+          // codex review #5 反映: cancel / conflict 時の戻りを視認しやすくする短い animation
+          dropAnimation={{ duration: 160, easing: "cubic-bezier(0.2, 0, 0, 1)" }}
+        >
+          {activeTask ? (
+            // aria-hidden で screen reader の二重読み上げを防ぐ (codex review 反映)
+            <div aria-hidden="true">
+              <CardView task={activeTask} isOverlay compact={viewMode === "compact"} />
+            </div>
+          ) : null}
+        </DragOverlay>,
+        document.body,
+      )}
     </DndContext>
   );
 }
