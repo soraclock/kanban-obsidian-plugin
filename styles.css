@@ -1704,20 +1704,41 @@
 .kanban-root .kanban-calendar-chip:hover {
   border-color: var(--interactive-accent);
 }
-/* 優先度別の背景色。
- * alpha でテーマ非依存、P1 を deeper orange / P2 を pure yellow に振り分けて
- * 中間色帯 (橙 vs 黄) の被りを解消する。 */
+/* 優先度別の solid 色背景 + 明示文字色。
+ * alpha 背景は dark mode で黒に引っ張られて判別困難だったため solid に切り替え。
+ * P2 (黄) のみ黒文字で視認性確保。 */
 .kanban-root .kanban-calendar-chip.kanban-priority-p0 {
-  background-color: rgba(211, 47, 47, 0.32);
+  background-color: #d32f2f;
+  color: #fff;
+  border-color: #b71c1c;
 }
 .kanban-root .kanban-calendar-chip.kanban-priority-p1 {
-  background-color: rgba(230, 74, 25, 0.32);
+  background-color: #ef6c00;
+  color: #fff;
+  border-color: #e65100;
 }
 .kanban-root .kanban-calendar-chip.kanban-priority-p2 {
-  background-color: rgba(253, 216, 53, 0.35);
+  background-color: #fdd835;
+  color: #000;
+  border-color: #f9a825;
 }
 .kanban-root .kanban-calendar-chip.kanban-priority-p3 {
-  background-color: rgba(67, 160, 71, 0.32);
+  background-color: #43a047;
+  color: #fff;
+  border-color: #2e7d32;
+}
+/* P0/P1/P3 の hover はテーマ accent ではなく濃色側でハイライト */
+.kanban-root .kanban-calendar-chip.kanban-priority-p0:hover {
+  border-color: #ffffff;
+}
+.kanban-root .kanban-calendar-chip.kanban-priority-p1:hover {
+  border-color: #ffffff;
+}
+.kanban-root .kanban-calendar-chip.kanban-priority-p2:hover {
+  border-color: #000000;
+}
+.kanban-root .kanban-calendar-chip.kanban-priority-p3:hover {
+  border-color: #ffffff;
 }
 .kanban-root .kanban-calendar-chip-prio {
   font-weight: 700;
