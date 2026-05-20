@@ -1693,6 +1693,7 @@
   color: var(--text-normal);
   background-color: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
+  border-left-width: 3px;
   border-radius: 3px;
   cursor: pointer;
   font-family: inherit;
@@ -1702,6 +1703,20 @@
 }
 .kanban-root .kanban-calendar-chip:hover {
   border-color: var(--interactive-accent);
+}
+/* 優先度別の薄い背景色（カードの左ボーダーと併用）。
+ * alpha 値でテーマ (light/dark) 非依存にする。 */
+.kanban-root .kanban-calendar-chip.kanban-priority-p0 {
+  background-color: rgba(211, 47, 47, 0.18);
+}
+.kanban-root .kanban-calendar-chip.kanban-priority-p1 {
+  background-color: rgba(239, 108, 0, 0.18);
+}
+.kanban-root .kanban-calendar-chip.kanban-priority-p2 {
+  background-color: rgba(249, 168, 37, 0.20);
+}
+.kanban-root .kanban-calendar-chip.kanban-priority-p3 {
+  background-color: rgba(67, 160, 71, 0.18);
 }
 .kanban-root .kanban-calendar-chip-prio {
   font-weight: 700;
