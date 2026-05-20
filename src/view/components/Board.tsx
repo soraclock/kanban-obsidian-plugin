@@ -299,6 +299,25 @@ export function Board({ app, ctx }: { app: App; ctx: PluginContext }) {
       new Notice("定期タスクは「今回分を完了」ボタンから操作してください");
       return;
     }
+    // 逆方向: 普通タスクを「定期」列にドロップする操作も禁止
+    // (recurrence なしで status=定期 になる謎の状態を防ぐ)
+    if (
+      activeTaskNow.status !== "定期" &&
+      overData?.type === "column" &&
+      overData.status === "定期"
+    ) {
+      new Notice("定期タスクにする場合は詳細画面で recurrence を設定してください");
+      return;
+    }
+    if (
+      activeTaskNow.status !== "定期" &&
+      overData?.type === "card" &&
+      overData.task &&
+      overData.task.status === "定期"
+    ) {
+      new Notice("定期タスクにする場合は詳細画面で recurrence を設定してください");
+      return;
+    }
 
     try {
       if (overData?.type === "column") {

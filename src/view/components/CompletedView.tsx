@@ -117,8 +117,7 @@ export function CompletedView({ ctx }: { ctx: PluginContext }) {
         <div className="kanban-completed-list">
           {grouped.map(([month, items]) => {
             const recurringCount = items.filter(
-              ({ task }) =>
-                (task as Task & { recurringHistoryOf?: string }).recurringHistoryOf != null,
+              ({ task }) => task.recurringHistoryOf != null,
             ).length;
             const normalCount = items.length - recurringCount;
             return (
@@ -136,8 +135,7 @@ export function CompletedView({ ctx }: { ctx: PluginContext }) {
               </h3>
               <div className="kanban-completed-rows">
                 {items.map(({ task, dateYmd }) => {
-                  const isRecurringHistory =
-                    (task as Task & { recurringHistoryOf?: string }).recurringHistoryOf != null;
+                  const isRecurringHistory = task.recurringHistoryOf != null;
                   return (
                   <div
                     key={task.filePath}
@@ -186,15 +184,17 @@ export function CompletedView({ ctx }: { ctx: PluginContext }) {
                       >
                         詳細
                       </button>
-                      <button
-                        type="button"
-                        className="kanban-subview-action"
-                        onClick={() => {
-                          void onRevert(task);
-                        }}
-                      >
-                        未着手に戻す
-                      </button>
+                      {!isRecurringHistory && (
+                        <button
+                          type="button"
+                          className="kanban-subview-action"
+                          onClick={() => {
+                            void onRevert(task);
+                          }}
+                        >
+                          未着手に戻す
+                        </button>
+                      )}
                     </div>
                   </div>
                   );

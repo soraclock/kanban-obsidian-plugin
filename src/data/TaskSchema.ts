@@ -88,6 +88,9 @@ export const TaskFrontmatterSchema = z
     // Phase 7: 定期タスク。完了状態遷移時に次回分を自動複製する。
     // 書式: "daily" / "weekly:mon|tue|...|sun" / "monthly:1..31|lastday" / "every:Nd"
     recurrence: z.union([z.string().min(1), z.null()]).optional(),
+    // v0.2.0: 定期タスクの履歴インスタンスマーカー（親の id を保持）。
+    // 完了タブで「定期」バッジ表示の判定に使う。
+    recurringHistoryOf: z.string().optional(),
   })
   .passthrough();
 // passthrough: 未知キーは警告対象として SchemaAudit 側で扱う。スキーマレベルでは弾かない。
