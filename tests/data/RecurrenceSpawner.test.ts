@@ -3,6 +3,7 @@ import matter from "gray-matter";
 import { PathLock } from "../../src/data/PathLock";
 import { RecurrenceSpawner } from "../../src/data/RecurrenceSpawner";
 import type { Task } from "../../src/data/Task";
+import { sha256 } from "../../src/data/ContentHash";
 import { makeFakeApp } from "../helpers/fakeApp";
 
 const TASKS_DIR = "秘書/tasks";
@@ -49,6 +50,8 @@ function buildEnv(extraFiles: Record<string, string> = {}) {
   const source = makeSourceTask();
   const parentContent =
     "---\nid: K-0005\ntitle: 週次レビュー\nstatus: 定期\nassignee: 花木\npriority: P1\ndue: 2026-05-11\nrecurrence: weekly:mon\ntags: [weekly]\nrelated: []\ncreated: 2026-05-01\nupdated: 2026-05-11\norder: 5\nestimateHours: 2\n---\n\n## サブタスク\n\n- [x] 完了済み\n- [x] これも済み\n";
+  // 新モデル (v0.2.3) では PathLock 内で親 hash を再検証するため、テスト fixture も実 hash を渡す
+  const parentHash = sha256(parentContent);
   const { app, files } = makeFakeApp({
     [README_PATH]: makeReadme(6),
     [source.filePath]: parentContent,
@@ -56,13 +59,13 @@ function buildEnv(extraFiles: Record<string, string> = {}) {
   });
   const pathLock = new PathLock();
   const spawner = new RecurrenceSpawner(app as never, TASKS_DIR, pathLock);
-  return { app, files, spawner };
+  return { app, files, spawner, parentHash };
 }
 
 describe("RecurrenceSpawner (新モデル: 履歴生成 + 親 due 更新)", () => {
   it("case 1: weekly:mon の親を完了 → 履歴 K-NNNN 生成 + 親の due が翌週月曜に", async () => {
-    const { files, spawner } = buildEnv();
-    const source = makeSourceTask({ due: "2026-05-11" }); // 2026-05-11 は月曜
+    const { files, spawner, parentHash } = buildEnv();
+    const source = makeSourceTask({ contentHash: parentHash, due: "2026-05-11" }); // 2026-05-11 は月曜
 
     const result = await spawner.completeRecurringInstance(source, "2026-05-11");
 
@@ -76,11 +79,12 @@ describe("RecurrenceSpawner (新モデル: 履歴生成 + 親 due 更新)", () =
   });
 
   it("case 2: ID 採番 — _README.md を読んで K-0006 を履歴として作成し K-0007 に更新", async () => {
-    const { files, spawner } = buildEnv();
-    const source = makeSourceTask();
+    const { files, spawner, parentHash } = buildEnv();
+    const source = makeSourceTask({ contentHash: parentHash });
 
     const result = await spawner.completeRecurringInstance(source, "2026-05-11");
 
+    // collectExistingIds で K-0005 を発見し +1 で K-0006 を採番（衝突なし）
     expect(result!.newId).toBe("K-0006");
     expect(result!.newFilePath).toContain("K-0006-");
     expect(result!.newFilePath).toContain("2026-05-11"); // 日付サフィックス
@@ -89,8 +93,8 @@ describe("RecurrenceSpawner (新モデル: 履歴生成 + 親 due 更新)", () =
   });
 
   it("case 3: 履歴は status=完了 / recurrence=null / completedAt=今日", async () => {
-    const { files, spawner } = buildEnv();
-    const source = makeSourceTask();
+    const { files, spawner, parentHash } = buildEnv();
+    const source = makeSourceTask({ contentHash: parentHash });
 
     const result = await spawner.completeRecurringInstance(source, "2026-05-11");
 
@@ -102,8 +106,8 @@ describe("RecurrenceSpawner (新モデル: 履歴生成 + 親 due 更新)", () =
   });
 
   it("case 4: 親の subtasks が unchecked にリセットされる", async () => {
-    const { files, spawner } = buildEnv();
-    const source = makeSourceTask();
+    const { files, spawner, parentHash } = buildEnv();
+    const source = makeSourceTask({ contentHash: parentHash });
 
     await spawner.completeRecurringInstance(source, "2026-05-11");
 
@@ -114,10 +118,10 @@ describe("RecurrenceSpawner (新モデル: 履歴生成 + 親 due 更新)", () =
   });
 
   it("case 5: estimateHours / actualHours は履歴に引き継ぐ（その回の実績記録）", async () => {
-    const { files, spawner } = buildEnv();
+    const { files, spawner, parentHash } = buildEnv();
     const source = makeSourceTask({
+      contentHash: parentHash,
       estimateHours: 2,
-      // actualHours は overrides で受けるパターン
     });
     (source as unknown as { actualHours?: number | null }).actualHours = 1.5;
 
@@ -129,11 +133,20 @@ describe("RecurrenceSpawner (新モデル: 履歴生成 + 親 due 更新)", () =
   });
 
   it("case 6: slug サニタイズ — ファイル名に危険文字を含まない", async () => {
-    const { spawner } = buildEnv({
-      [`${TASKS_DIR}/K-0005-foo-bar.md`]:
-        "---\nid: K-0005\nstatus: 定期\nrecurrence: weekly:mon\ndue: 2026-05-11\n---\n",
+    const extraPath = `${TASKS_DIR}/K-0005-foo-bar.md`;
+    const extraContent =
+      "---\nid: K-0005\ntitle: 週次レビュー\nstatus: 定期\nassignee: 花木\npriority: P1\ndue: 2026-05-11\nrecurrence: weekly:mon\ntags: [weekly]\nrelated: []\ncreated: 2026-05-01\nupdated: 2026-05-11\norder: 5\nestimateHours: 2\n---\n\n## サブタスク\n\n- [x] 完了済み\n- [x] これも済み\n";
+    const { app, files } = makeFakeApp({
+      [README_PATH]: makeReadme(6),
+      [extraPath]: extraContent,
     });
-    const source = makeSourceTask({ filePath: `${TASKS_DIR}/K-0005-foo-bar.md` });
+    const pathLock = new PathLock();
+    const spawner = new RecurrenceSpawner(app as never, TASKS_DIR, pathLock);
+    const source = makeSourceTask({
+      filePath: extraPath,
+      contentHash: sha256(extraContent),
+    });
+    void files;
 
     const result = await spawner.completeRecurringInstance(source, "2026-05-11");
 

@@ -374,6 +374,12 @@ export function DetailPane({ ctx }: { ctx: PluginContext }) {
       new Notice("期限は YYYY/MM/DD 形式で入力してください");
       return;
     }
+    // 定期タスクの「完了」への手動遷移は履歴が残らないため block。
+    // 完了は Card 上の「今回分を完了」ボタン (✓) から行う運用に統一する。
+    if (task.status === "定期" && form.status === "完了") {
+      new Notice("定期タスクの完了は「今回分を完了」ボタン (✓) から行ってください");
+      return;
+    }
     setSaving(true);
     try {
       const expectedHash = forceOverwrite ? task.contentHash : baselineHash!;

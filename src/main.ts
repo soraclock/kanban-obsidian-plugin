@@ -282,18 +282,33 @@ export default class KanbanPlugin extends Plugin {
         return t.status === "未着手" || t.status === "進行中" || t.status === "確認待ち";
       });
       let migrated = 0;
+      let failed = 0;
       for (const t of targets) {
         try {
           await this.taskWriter.updateStatus(t.filePath, t.contentHash, "定期");
           migrated++;
         } catch (e) {
+          failed++;
           console.warn(`[kanban] migration skipped: ${t.filePath}`, e);
         }
       }
-      await this.saveData({ ...data, recurringMigrationDone: true });
+      // codex review 反映: 失敗があれば flag を立てず次回再試行する
+      if (failed === 0) {
+        await this.saveData({ ...data, recurringMigrationDone: true });
+      } else {
+        console.warn(
+          `[kanban] recurring migration: ${migrated} succeeded / ${failed} failed. Will retry on next launch.`,
+        );
+      }
       if (migrated > 0) {
         new Notice(`定期タスク ${migrated} 件を「定期」列に移しました`);
         useBoardStore.getState().requestReload();
+      }
+      if (failed > 0) {
+        new Notice(
+          `定期タスク移行: ${failed} 件失敗（次回起動時に再試行します）`,
+          8000,
+        );
       }
     } catch (e) {
       console.warn("[kanban] recurring migration failed:", e);
