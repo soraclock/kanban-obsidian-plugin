@@ -17,14 +17,14 @@ const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 function specToFormParts(spec: string | null | undefined): {
   recurrenceKind: RecurrenceKind;
   recurrenceWeekday: number; // 0..6
-  recurrenceMonthDay: number; // 1..31
-  recurrenceEveryDays: number; // >=1
+  recurrenceMonthDayStr: string; // "1".."31" or ""
+  recurrenceEveryDaysStr: string; // ">=1" or ""
 } {
   const defaults = {
     recurrenceKind: "none" as RecurrenceKind,
     recurrenceWeekday: 1,
-    recurrenceMonthDay: 1,
-    recurrenceEveryDays: 7,
+    recurrenceMonthDayStr: "1",
+    recurrenceEveryDaysStr: "7",
   };
   if (!spec) return defaults;
   const r = parseRecurrence(spec);
@@ -35,19 +35,29 @@ function specToFormParts(spec: string | null | undefined): {
     case "weekly":
       return { ...defaults, recurrenceKind: "weekly", recurrenceWeekday: r.weekday };
     case "monthlyDay":
-      return { ...defaults, recurrenceKind: "monthlyDay", recurrenceMonthDay: r.day };
+      return { ...defaults, recurrenceKind: "monthlyDay", recurrenceMonthDayStr: String(r.day) };
     case "monthlyLast":
       return { ...defaults, recurrenceKind: "monthlyLast" };
     case "every":
-      return { ...defaults, recurrenceKind: "every", recurrenceEveryDays: r.days };
+      return {
+        ...defaults,
+        recurrenceKind: "every",
+        recurrenceEveryDaysStr: String(r.days),
+      };
   }
+}
+
+function parseRecurrencePart(str: string, min: number, max: number, fallback: number): number {
+  const n = parseInt(str, 10);
+  if (!Number.isFinite(n) || n < min) return fallback;
+  return Math.min(n, max);
 }
 
 function formPartsToSpec(parts: {
   recurrenceKind: RecurrenceKind;
   recurrenceWeekday: number;
-  recurrenceMonthDay: number;
-  recurrenceEveryDays: number;
+  recurrenceMonthDayStr: string;
+  recurrenceEveryDaysStr: string;
 }): string | null {
   switch (parts.recurrenceKind) {
     case "none":
@@ -57,11 +67,11 @@ function formPartsToSpec(parts: {
     case "weekly":
       return `weekly:${WEEKDAY_NAMES[parts.recurrenceWeekday]!}`;
     case "monthlyDay":
-      return `monthly:${parts.recurrenceMonthDay}`;
+      return `monthly:${parseRecurrencePart(parts.recurrenceMonthDayStr, 1, 31, 1)}`;
     case "monthlyLast":
       return "monthly:lastday";
     case "every":
-      return `every:${parts.recurrenceEveryDays}d`;
+      return `every:${parseRecurrencePart(parts.recurrenceEveryDaysStr, 1, 3650, 7)}d`;
   }
 }
 
@@ -96,11 +106,12 @@ interface FormState {
   completedAt: string; // YYYY-MM-DD or ""
   estimateHoursStr: string; // 数値 or ""
   actualHoursStr: string; // 数値 or ""
-  // Phase 7 定期タスク。構造化フィールド (kind + 補助) として保持し、保存時に spec string へ変換
+  // Phase 7 定期タスク。構造化フィールド (kind + 補助) として保持し、保存時に spec string へ変換。
+  // 数値フィールドは入力中の空文字を許容するため文字列で保持する (controlled input が "1" で固定される問題を回避)。
   recurrenceKind: RecurrenceKind;
   recurrenceWeekday: number; // 0..6 (日..土)
-  recurrenceMonthDay: number; // 1..31
-  recurrenceEveryDays: number; // >=1
+  recurrenceMonthDayStr: string; // "1".."31" or ""
+  recurrenceEveryDaysStr: string; // ">=1" or ""
 }
 
 function taskToForm(t: Task): FormState {
@@ -148,8 +159,8 @@ function formsEqual(a: FormState, b: FormState): boolean {
     a.actualHoursStr === b.actualHoursStr &&
     a.recurrenceKind === b.recurrenceKind &&
     (a.recurrenceKind !== "weekly" || a.recurrenceWeekday === b.recurrenceWeekday) &&
-    (a.recurrenceKind !== "monthlyDay" || a.recurrenceMonthDay === b.recurrenceMonthDay) &&
-    (a.recurrenceKind !== "every" || a.recurrenceEveryDays === b.recurrenceEveryDays) &&
+    (a.recurrenceKind !== "monthlyDay" || a.recurrenceMonthDayStr === b.recurrenceMonthDayStr) &&
+    (a.recurrenceKind !== "every" || a.recurrenceEveryDaysStr === b.recurrenceEveryDaysStr) &&
     subtasksEqual(a.subtasks, b.subtasks)
   );
 }
@@ -173,8 +184,8 @@ function diffFormState(a: FormState, b: FormState): Record<string, [unknown, unk
     "actualHoursStr",
     "recurrenceKind",
     "recurrenceWeekday",
-    "recurrenceMonthDay",
-    "recurrenceEveryDays",
+    "recurrenceMonthDayStr",
+    "recurrenceEveryDaysStr",
   ];
   for (const k of keys) {
     if (a[k] !== b[k]) out[k] = [a[k], b[k]];
@@ -234,8 +245,8 @@ export function threeWayMerge(
     "actualHoursStr",
     "recurrenceKind",
     "recurrenceWeekday",
-    "recurrenceMonthDay",
-    "recurrenceEveryDays",
+    "recurrenceMonthDayStr",
+    "recurrenceEveryDaysStr",
   ];
 
   for (const k of scalarKeys) {
@@ -697,10 +708,15 @@ export function DetailPane({ ctx }: { ctx: PluginContext }) {
                 type="number"
                 min={1}
                 max={31}
-                value={form.recurrenceMonthDay}
-                onChange={(e) => {
-                  const n = Math.max(1, Math.min(31, Number(e.target.value) || 1));
-                  setForm({ ...form, recurrenceMonthDay: n });
+                value={form.recurrenceMonthDayStr}
+                onChange={(e) =>
+                  setForm({ ...form, recurrenceMonthDayStr: e.target.value })
+                }
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v === "") {
+                    setForm({ ...form, recurrenceMonthDayStr: "1" });
+                  }
                 }}
               />
             </label>
@@ -711,10 +727,15 @@ export function DetailPane({ ctx }: { ctx: PluginContext }) {
               <input
                 type="number"
                 min={1}
-                value={form.recurrenceEveryDays}
-                onChange={(e) => {
-                  const n = Math.max(1, Number(e.target.value) || 1);
-                  setForm({ ...form, recurrenceEveryDays: n });
+                value={form.recurrenceEveryDaysStr}
+                onChange={(e) =>
+                  setForm({ ...form, recurrenceEveryDaysStr: e.target.value })
+                }
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v === "") {
+                    setForm({ ...form, recurrenceEveryDaysStr: "7" });
+                  }
                 }}
               />
             </label>
