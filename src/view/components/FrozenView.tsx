@@ -159,7 +159,10 @@ export function FrozenView({ ctx }: { ctx: PluginContext }) {
                 <button
                   type="button"
                   className="kanban-subview-action"
-                  onClick={() => openDetail(task.filePath)}
+                  onClick={() => {
+                    setCurrentView("board");
+                    openDetail(task.filePath);
+                  }}
                 >
                   詳細
                 </button>
