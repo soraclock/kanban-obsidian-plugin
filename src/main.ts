@@ -50,6 +50,12 @@ export default class KanbanPlugin extends Plugin {
     console.log("[kanban] plugin loading...");
 
     await this.loadSettings();
+    // 起動時にタグ設定を boardStore に同期 (view が初期描画時に反映できるように)
+    useBoardStore.getState().setTagConfig({
+      tagOrder: this.settings.tagOrder,
+      tagColors: this.settings.tagColors,
+      autoColorEnabled: this.settings.autoColorEnabled,
+    });
 
     this.lifecycle = new PluginLifecycle(this);
     await this.lifecycle.onLoad();
@@ -350,12 +356,49 @@ export default class KanbanPlugin extends Plugin {
     const data = ((await this.loadData()) ?? {}) as Record<string, unknown>;
     this.settings = {
       tasksDir: normalizeTasksDir(data.tasksDir),
+      tagOrder: Array.isArray(data.tagOrder)
+        ? (data.tagOrder.filter((s) => typeof s === "string") as string[])
+        : [],
+      tagColors:
+        data.tagColors && typeof data.tagColors === "object"
+          ? Object.fromEntries(
+              Object.entries(data.tagColors as Record<string, unknown>).filter(
+                ([, v]) => typeof v === "string",
+              ) as [string, string][],
+            )
+          : {},
+      autoColorEnabled: data.autoColorEnabled !== false, // 未設定 / undefined は true
     };
+  }
+
+  /**
+   * Obsidian Sync 等で data.json が外部更新されたときに Obsidian が呼ぶ。
+   * loadSettings を再実行して boardStore のタグ設定を最新に同期する。
+   */
+  async onExternalSettingsChange(): Promise<void> {
+    await this.loadSettings();
+    useBoardStore.getState().setTagConfig({
+      tagOrder: this.settings.tagOrder,
+      tagColors: this.settings.tagColors,
+      autoColorEnabled: this.settings.autoColorEnabled,
+    });
   }
 
   async saveSettings(): Promise<void> {
     const data = ((await this.loadData()) ?? {}) as Record<string, unknown>;
-    await this.saveData({ ...data, tasksDir: this.settings.tasksDir });
+    await this.saveData({
+      ...data,
+      tasksDir: this.settings.tasksDir,
+      tagOrder: this.settings.tagOrder,
+      tagColors: this.settings.tagColors,
+      autoColorEnabled: this.settings.autoColorEnabled,
+    });
+    // タグ設定を boardStore にミラーして view を即時更新
+    useBoardStore.getState().setTagConfig({
+      tagOrder: this.settings.tagOrder,
+      tagColors: this.settings.tagColors,
+      autoColorEnabled: this.settings.autoColorEnabled,
+    });
   }
 
   async onunload() {

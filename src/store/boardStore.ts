@@ -93,6 +93,14 @@ interface BoardState {
   errors: BoardError[];
   /** Plugin 外部から reload を要求するためのカウンタ。Board.tsx の useEffect が監視 */
   reloadTrigger: number;
+  /** v0.4.0: タグ設定 (tagOrder / tagColors / autoColorEnabled) のミラー。
+   *  設定タブが書き換えたら main.ts が setTagConfig で同期する。
+   *  view 側は selector で監視して再描画する（オブジェクト参照が変わるたびに rerender）。 */
+  tagConfig: {
+    tagOrder: string[];
+    tagColors: Record<string, string>;
+    autoColorEnabled: boolean;
+  };
   /** Phase 3: DetailPane で開いているタスクの filePath。null なら閉じている */
   openDetailFilePath: string | null;
   /** Phase 6: フィルタ / 検索状態 */
@@ -107,6 +115,12 @@ interface BoardState {
   setErrors: (errors: BoardError[]) => void;
   /** 再読込を要求。DnD 完了後・Undo 後・vault 変更検知時 などから呼ぶ */
   requestReload: () => void;
+  /** v0.4.0: 設定タブの変更を boardStore にミラーする */
+  setTagConfig: (config: {
+    tagOrder: string[];
+    tagColors: Record<string, string>;
+    autoColorEnabled: boolean;
+  }) => void;
   /**
    * Phase 3: 単一 task の partial update。VaultWatcher が外部編集を検知したとき、
    * または DetailPane 保存後にロード結果をマージするときに使う。
@@ -156,6 +170,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   loading: false,
   errors: [],
   reloadTrigger: 0,
+  tagConfig: { tagOrder: [], tagColors: {}, autoColorEnabled: true },
   openDetailFilePath: null,
   filter: DEFAULT_FILTER,
   viewMode: "detailed",
@@ -168,6 +183,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   setLoading: (loading) => set({ loading }),
   setErrors: (errors) => set({ errors }),
   requestReload: () => set((s) => ({ reloadTrigger: s.reloadTrigger + 1 })),
+  setTagConfig: (config) => set({ tagConfig: config }),
 
   upsertTask: (task) =>
     set((s) => {

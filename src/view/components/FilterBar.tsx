@@ -3,6 +3,7 @@ import { Platform } from "obsidian";
 import { useBoardStore, type DueFilter, type LayoutMode } from "../../store/boardStore";
 import { PRIORITY_VALUES, STATUS_VALUES, type Priority, type Status } from "../../data/TaskSchema";
 import { collectAllTags } from "../../data/TaskFilter";
+import { resolveTagColor, readableTextColor, sortByTagOrder } from "../../util/tagColor";
 
 // Phase 9: ステータス絞り込みチップ + レイアウト切替を追加（board/list/focus）。
 
@@ -50,7 +51,11 @@ export function FilterBar() {
   const deleteSavedFilter = useBoardStore((s) => s.deleteSavedFilter);
   const [presetMenuOpen, setPresetMenuOpen] = React.useState(false);
 
-  const allTags = React.useMemo(() => collectAllTags(tasks), [tasks]);
+  const tagConfig = useBoardStore((s) => s.tagConfig);
+  const allTags = React.useMemo(
+    () => sortByTagOrder(collectAllTags(tasks), tagConfig.tagOrder),
+    [tasks, tagConfig.tagOrder],
+  );
 
   // Phase 9: アクティブ 3 status の件数を 1 回の走査で取得（Board と表示が一致するよう
   // active な status だけカウント、完了/凍結はここでは数えない）
@@ -236,17 +241,29 @@ export function FilterBar() {
       {allTags.length > 0 && (
         <div className="kanban-filterbar-group">
           <span className="kanban-filterbar-label">タグ</span>
-          {allTags.map((t) => (
-            <button
-              key={t}
-              type="button"
-              className={`kanban-filter-chip ${filter.tags.includes(t) ? "is-active" : ""}`}
-              onClick={() => toggleTag(t)}
-              aria-pressed={filter.tags.includes(t)}
-            >
-              {t}
-            </button>
-          ))}
+          {allTags.map((t) => {
+            const color = resolveTagColor(t, tagConfig);
+            const active = filter.tags.includes(t);
+            // 選択時のみ tag color で塗る。非選択時は枠だけ tag color で示すと
+            // 「現在のフィルタは何か」が一目で分かる。
+            const style: React.CSSProperties = color
+              ? active
+                ? { backgroundColor: color, color: readableTextColor(color), borderColor: color }
+                : { borderColor: color }
+              : {};
+            return (
+              <button
+                key={t}
+                type="button"
+                className={`kanban-filter-chip ${active ? "is-active" : ""}`}
+                style={style}
+                onClick={() => toggleTag(t)}
+                aria-pressed={active}
+              >
+                {t}
+              </button>
+            );
+          })}
         </div>
       )}
 

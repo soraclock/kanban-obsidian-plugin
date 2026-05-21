@@ -9,6 +9,27 @@ import { dndState } from "../dndState";
 import { ConflictError } from "../../data/ContentHash";
 import type { PluginContext } from "../PluginContext";
 import { formatYmdForDisplay } from "../../util/dateFormat";
+import { resolveTagColor, readableTextColor, sortByTagOrder } from "../../util/tagColor";
+
+function CardTagList({ tags }: { tags: string[] }) {
+  const tagConfig = useBoardStore((s) => s.tagConfig);
+  const ordered = React.useMemo(() => sortByTagOrder(tags, tagConfig.tagOrder), [tags, tagConfig.tagOrder]);
+  return (
+    <div className="kanban-card-tags">
+      {ordered.map((t) => {
+        const color = resolveTagColor(t, tagConfig);
+        const style: React.CSSProperties = color
+          ? { backgroundColor: color, color: readableTextColor(color), borderColor: color }
+          : {};
+        return (
+          <span key={t} className="kanban-tag" style={style}>
+            {t}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 
 function dueClassAndLabel(due: string | null | undefined): { className: string; label: string } | null {
   if (!due) return null;
@@ -116,13 +137,7 @@ export function CardView({
         </ul>
       )}
       {!compact && task.tags.length > 0 && (
-        <div className="kanban-card-tags">
-          {task.tags.map((t) => (
-            <span key={t} className="kanban-tag">
-              {t}
-            </span>
-          ))}
-        </div>
+        <CardTagList tags={task.tags} />
       )}
     </div>
   );

@@ -4,15 +4,22 @@ import { DEFAULT_TASKS_DIR } from "../data/Constants";
  * Plugin の永続設定。data.json に保存される。
  *
  * tasksDir: vault 内のタスクフォルダパス。スラッシュ区切りの相対パス。
- *   既定は "tasks"。配布時に他人の vault でも動くようにするため、
- *   特定のユーザー固有パス（"秘書/tasks" など）は default にしない。
+ * tagOrder: タグの表示順。FilterBar 等で利用される。未登録タグは末尾。
+ * tagColors: 個別タグの色（CSS color、例 "#ef6c00"）。空 = 自動色を使う。
+ * autoColorEnabled: 個別指定のないタグに自動色を当てるか。
  */
 export interface PluginSettings {
   tasksDir: string;
+  tagOrder: string[];
+  tagColors: Record<string, string>;
+  autoColorEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
   tasksDir: DEFAULT_TASKS_DIR,
+  tagOrder: [],
+  tagColors: {},
+  autoColorEnabled: true,
 };
 
 /**

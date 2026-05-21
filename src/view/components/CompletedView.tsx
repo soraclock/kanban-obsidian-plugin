@@ -6,6 +6,7 @@ import type { Task } from "../../data/Task";
 import { ConflictError } from "../../data/ContentHash";
 import type { PluginContext } from "../PluginContext";
 import { formatYmdForDisplay } from "../../util/dateFormat";
+import { resolveTagColor, readableTextColor, sortByTagOrder } from "../../util/tagColor";
 
 /**
  * Phase 8: status=完了 のタスクを月セクションで一覧する専用ビュー。
@@ -36,6 +37,26 @@ function formatYearMonthLabel(month: string): string {
   const m = month.match(/^(\d{4})-(\d{2})$/);
   if (!m) return month;
   return `${m[1]}年 ${parseInt(m[2]!, 10)}月`;
+}
+
+function CompletedTagList({ tags }: { tags: string[] }) {
+  const tagConfig = useBoardStore((s) => s.tagConfig);
+  const ordered = React.useMemo(() => sortByTagOrder(tags, tagConfig.tagOrder), [tags, tagConfig.tagOrder]);
+  return (
+    <span className="kanban-completed-tags">
+      {ordered.map((t) => {
+        const color = resolveTagColor(t, tagConfig);
+        const style: React.CSSProperties = color
+          ? { backgroundColor: color, color: readableTextColor(color), borderColor: color }
+          : {};
+        return (
+          <span key={t} className="kanban-tag" style={style}>
+            {t}
+          </span>
+        );
+      })}
+    </span>
+  );
 }
 
 export function CompletedView({ ctx }: { ctx: PluginContext }) {
@@ -163,13 +184,7 @@ export function CompletedView({ ctx }: { ctx: PluginContext }) {
                           {task.priority}
                         </span>
                         {task.tags.length > 0 && (
-                          <span className="kanban-completed-tags">
-                            {task.tags.map((t) => (
-                              <span key={t} className="kanban-tag">
-                                {t}
-                              </span>
-                            ))}
-                          </span>
+                          <CompletedTagList tags={task.tags} />
                         )}
                       </div>
                     </div>
