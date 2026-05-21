@@ -7,18 +7,26 @@
  * - `monthly:15`         : 毎月 (日付: 1..31)
  * - `monthly:lastday`    : 毎月末日
  * - `every:7d`           : N 日ごと (N: 1..)
+ * - `monthly:1st-mon`    : v0.6.1 第N曜日 (1st|2nd|3rd|4th|5th)-(sun..sat)
+ * - `monthly:last-fri`   : v0.6.1 最終曜日 last-(sun..sat)
  *
  * 完了に遷移したタスクに recurrence があれば、main.ts 側で次回 due を計算して
  * 新規 K-NNNN ファイルを作る (RecurrenceSpawner)。
  */
+export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
 export type Recurrence =
   | { kind: "daily" }
-  | { kind: "weekly"; weekday: 0 | 1 | 2 | 3 | 4 | 5 | 6 } // 0=日 1=月 ... 6=土
+  | { kind: "weekly"; weekday: Weekday } // 0=日 1=月 ... 6=土
   | { kind: "monthlyDay"; day: number } // 1..31
   | { kind: "monthlyLast" }
-  | { kind: "every"; days: number };
+  | { kind: "every"; days: number }
+  /** v0.6.1: 毎月の第N曜日 (例: monthly:1st-mon = 第1月曜日) */
+  | { kind: "monthlyNthWeekday"; ordinal: 1 | 2 | 3 | 4 | 5; weekday: Weekday }
+  /** v0.6.1: 毎月の最終曜日 (例: monthly:last-fri = 最終金曜日) */
+  | { kind: "monthlyLastWeekday"; weekday: Weekday };
 
-const WEEKDAY_MAP: Record<string, 0 | 1 | 2 | 3 | 4 | 5 | 6> = {
+const WEEKDAY_MAP: Record<string, Weekday> = {
   sun: 0,
   mon: 1,
   tue: 2,
@@ -26,6 +34,14 @@ const WEEKDAY_MAP: Record<string, 0 | 1 | 2 | 3 | 4 | 5 | 6> = {
   thu: 4,
   fri: 5,
   sat: 6,
+};
+
+const ORDINAL_MAP: Record<string, 1 | 2 | 3 | 4 | 5> = {
+  "1st": 1,
+  "2nd": 2,
+  "3rd": 3,
+  "4th": 4,
+  "5th": 5,
 };
 
 export function parseRecurrence(spec: string): Recurrence | null {
@@ -43,6 +59,20 @@ export function parseRecurrence(spec: string): Recurrence | null {
   if (em) {
     const n = Number(em[1]);
     if (n >= 1) return { kind: "every", days: n };
+  }
+  // v0.6.1: monthly:1st-mon..5th-sat
+  const nm = s.match(/^monthly:(1st|2nd|3rd|4th|5th)-(sun|mon|tue|wed|thu|fri|sat)$/);
+  if (nm) {
+    return {
+      kind: "monthlyNthWeekday",
+      ordinal: ORDINAL_MAP[nm[1]!]!,
+      weekday: WEEKDAY_MAP[nm[2]!]!,
+    };
+  }
+  // v0.6.1: monthly:last-mon..last-sat
+  const lm = s.match(/^monthly:last-(sun|mon|tue|wed|thu|fri|sat)$/);
+  if (lm) {
+    return { kind: "monthlyLastWeekday", weekday: WEEKDAY_MAP[lm[1]!]! };
   }
   return null;
 }
@@ -95,7 +125,70 @@ export function nextDueDate(recurrence: Recurrence, base: Date): string {
     }
     case "every":
       return ymd(new Date(baseY, baseM, baseD + recurrence.days));
+    case "monthlyNthWeekday": {
+      // 当月で算出してその日が base より後ならそれを使う。
+      // 第N指定で当月に存在しない (4回しかない月の第5指定) or 当月分が過ぎていれば翌月以降を順に試す。
+      let y = baseY;
+      let m = baseM;
+      for (let i = 0; i < 12; i++) {
+        const d = findNthWeekdayInMonth(y, m, recurrence.ordinal, recurrence.weekday);
+        if (d !== null && (i > 0 || d > baseD)) {
+          return ymd(new Date(y, m, d));
+        }
+        const next = addMonths(y, m, 1);
+        y = next.y;
+        m = next.m;
+      }
+      // フォールバック: 12 ヶ月先まで該当無しは理論上ありえないが、安全網
+      return ymd(new Date(baseY, baseM, baseD + 1));
+    }
+    case "monthlyLastWeekday": {
+      let y = baseY;
+      let m = baseM;
+      for (let i = 0; i < 2; i++) {
+        const d = findLastWeekdayInMonth(y, m, recurrence.weekday);
+        if (i > 0 || d > baseD) {
+          return ymd(new Date(y, m, d));
+        }
+        const next = addMonths(y, m, 1);
+        y = next.y;
+        m = next.m;
+      }
+      return ymd(new Date(baseY, baseM, baseD + 1));
+    }
   }
+}
+
+/**
+ * 月内の第N回目の指定曜日の日付を返す。N回目が存在しなければ null。
+ */
+function findNthWeekdayInMonth(
+  year: number,
+  month: number,
+  ordinal: 1 | 2 | 3 | 4 | 5,
+  weekday: Weekday,
+): number | null {
+  const lastDate = new Date(year, month + 1, 0).getDate();
+  let count = 0;
+  for (let d = 1; d <= lastDate; d++) {
+    if (new Date(year, month, d).getDay() === weekday) {
+      count++;
+      if (count === ordinal) return d;
+    }
+  }
+  return null;
+}
+
+/**
+ * 月内の最終回の指定曜日の日付を返す。各月に最低 4 回はあるので必ず見つかる。
+ */
+function findLastWeekdayInMonth(year: number, month: number, weekday: Weekday): number {
+  const lastDate = new Date(year, month + 1, 0).getDate();
+  for (let d = lastDate; d >= 1; d--) {
+    if (new Date(year, month, d).getDay() === weekday) return d;
+  }
+  // 月内に該当曜日が無いことはあり得ない（最低 4 回はある）が型安全のため
+  return lastDate;
 }
 
 function ymd(d: Date): string {
@@ -174,6 +267,16 @@ export function expandRecurrencesInMonth(
       }
       return result;
     }
+    case "monthlyNthWeekday": {
+      const d = findNthWeekdayInMonth(year, month, rec.ordinal, rec.weekday);
+      if (d !== null) result.push(ymdAt(d));
+      return result;
+    }
+    case "monthlyLastWeekday": {
+      const d = findLastWeekdayInMonth(year, month, rec.weekday);
+      result.push(ymdAt(d));
+      return result;
+    }
   }
 }
 
@@ -206,5 +309,9 @@ export function recurrenceLabel(spec: string | null | undefined): string | null 
       return "毎月末日";
     case "every":
       return `${r.days}日ごと`;
+    case "monthlyNthWeekday":
+      return `毎月 第${r.ordinal}${WEEKDAY_LABEL_FULL[r.weekday] ?? ""}`;
+    case "monthlyLastWeekday":
+      return `毎月 最終${WEEKDAY_LABEL_FULL[r.weekday] ?? ""}`;
   }
 }

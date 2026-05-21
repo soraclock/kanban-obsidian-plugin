@@ -238,4 +238,98 @@ describe("recurrenceLabel", () => {
     expect(recurrenceLabel("")).toBeNull();
     expect(recurrenceLabel("invalid-spec")).toBeNull();
   });
+
+  it("v0.6.1: 第N曜日 / 最終曜日", () => {
+    expect(recurrenceLabel("monthly:1st-mon")).toBe("毎月 第1月曜");
+    expect(recurrenceLabel("monthly:2nd-fri")).toBe("毎月 第2金曜");
+    expect(recurrenceLabel("monthly:5th-sat")).toBe("毎月 第5土曜");
+    expect(recurrenceLabel("monthly:last-fri")).toBe("毎月 最終金曜");
+    expect(recurrenceLabel("monthly:last-sun")).toBe("毎月 最終日曜");
+  });
+});
+
+describe("parseRecurrence: v0.6.1 第N曜日 / 最終曜日", () => {
+  it("monthly:1st-mon", () => {
+    expect(parseRecurrence("monthly:1st-mon")).toEqual({
+      kind: "monthlyNthWeekday",
+      ordinal: 1,
+      weekday: 1,
+    });
+  });
+
+  it("monthly:5th-sat", () => {
+    expect(parseRecurrence("monthly:5th-sat")).toEqual({
+      kind: "monthlyNthWeekday",
+      ordinal: 5,
+      weekday: 6,
+    });
+  });
+
+  it("monthly:last-fri", () => {
+    expect(parseRecurrence("monthly:last-fri")).toEqual({
+      kind: "monthlyLastWeekday",
+      weekday: 5,
+    });
+  });
+
+  it("無効な ordinal や曜日は null", () => {
+    expect(parseRecurrence("monthly:6th-mon")).toBeNull();
+    expect(parseRecurrence("monthly:0th-mon")).toBeNull();
+    expect(parseRecurrence("monthly:1st-xxx")).toBeNull();
+  });
+});
+
+describe("nextDueDate: v0.6.1 第N曜日 / 最終曜日", () => {
+  it("毎月 第1月曜日: 2026-05-04 → 2026-06-01", () => {
+    // 2026-05-04 は月曜 (第1月曜)、次回は 2026-06-01 (月曜・第1月曜)
+    const r = parseRecurrence("monthly:1st-mon")!;
+    expect(nextDueDate(r, new Date(2026, 4, 4))).toBe("2026-06-01");
+  });
+
+  it("毎月 第3水曜日: 2026-05-20 → 2026-06-17", () => {
+    // 2026-05-20 は第3水曜日、次回は 2026-06-17 (第3水曜日)
+    const r = parseRecurrence("monthly:3rd-wed")!;
+    expect(nextDueDate(r, new Date(2026, 4, 20))).toBe("2026-06-17");
+  });
+
+  it("毎月 第5月曜日: 5月に第5月曜は無い → 6月以降を探す", () => {
+    // 2026年5月の月曜は 4/11/18/25 の 4 回のみ → 第5月曜は存在しない
+    // 2026年6月の月曜は 1/8/15/22/29 → 第5月曜は 29日
+    const r = parseRecurrence("monthly:5th-mon")!;
+    expect(nextDueDate(r, new Date(2026, 4, 1))).toBe("2026-06-29");
+  });
+
+  it("毎月 最終金曜日: 2026-05-29 → 2026-06-26", () => {
+    // 2026-05-29 が最終金曜、次回は 2026-06-26
+    const r = parseRecurrence("monthly:last-fri")!;
+    expect(nextDueDate(r, new Date(2026, 4, 29))).toBe("2026-06-26");
+  });
+
+  it("base が同月の N回目より前ならその月の N回目を返す (5/1 + 第3水曜 → 5/20)", () => {
+    // 2026年5月の水曜は 6, 13, 20, 27 → 第3水曜は 20日
+    const r = parseRecurrence("monthly:3rd-wed")!;
+    expect(nextDueDate(r, new Date(2026, 4, 1))).toBe("2026-05-20");
+  });
+});
+
+describe("expandRecurrencesInMonth: v0.6.1 第N曜日 / 最終曜日", () => {
+  it("毎月 第2月曜: 2026-05 → [2026-05-11]", () => {
+    const r = parseRecurrence("monthly:2nd-mon")!;
+    expect(expandRecurrencesInMonth(r, null, 2026, 4)).toEqual(["2026-05-11"]);
+  });
+
+  it("毎月 第5月曜: 2026-05 は 4 回しかないので空配列", () => {
+    const r = parseRecurrence("monthly:5th-mon")!;
+    expect(expandRecurrencesInMonth(r, null, 2026, 4)).toEqual([]);
+  });
+
+  it("毎月 第5月曜: 2026-06 (1/8/15/22/29) → [2026-06-29]", () => {
+    const r = parseRecurrence("monthly:5th-mon")!;
+    expect(expandRecurrencesInMonth(r, null, 2026, 5)).toEqual(["2026-06-29"]);
+  });
+
+  it("毎月 最終水曜: 2026-05 → [2026-05-27]", () => {
+    const r = parseRecurrence("monthly:last-wed")!;
+    expect(expandRecurrencesInMonth(r, null, 2026, 4)).toEqual(["2026-05-27"]);
+  });
 });

@@ -16,21 +16,35 @@ import { parseRecurrence } from "../../data/Recurrence";
 import { ImageAttachments } from "./ImageAttachments";
 import { formatYmdForDisplay, parseYmdInput, YMD_INPUT_REGEX } from "../../util/dateFormat";
 
-type RecurrenceKind = "none" | "daily" | "weekly" | "monthlyDay" | "monthlyLast" | "every";
+type RecurrenceKind =
+  | "none"
+  | "daily"
+  | "weekly"
+  | "monthlyDay"
+  | "monthlyLast"
+  | "every"
+  | "monthlyNthWeekday"  // v0.6.1: 第N曜日
+  | "monthlyLastWeekday"; // v0.6.1: 最終曜日
 const WEEKDAY_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+const ORDINAL_NAMES = ["1st", "2nd", "3rd", "4th", "5th"] as const;
+const ORDINAL_LABELS = ["第1", "第2", "第3", "第4", "第5"];
 
-function specToFormParts(spec: string | null | undefined): {
+interface RecurrenceFormParts {
   recurrenceKind: RecurrenceKind;
   recurrenceWeekday: number; // 0..6
   recurrenceMonthDayStr: string; // "1".."31" or ""
   recurrenceEveryDaysStr: string; // ">=1" or ""
-} {
-  const defaults = {
-    recurrenceKind: "none" as RecurrenceKind,
+  recurrenceOrdinal: number; // 1..5 (v0.6.1)
+}
+
+function specToFormParts(spec: string | null | undefined): RecurrenceFormParts {
+  const defaults: RecurrenceFormParts = {
+    recurrenceKind: "none",
     recurrenceWeekday: 1,
     recurrenceMonthDayStr: "1",
     recurrenceEveryDaysStr: "7",
+    recurrenceOrdinal: 1,
   };
   if (!spec) return defaults;
   const r = parseRecurrence(spec);
@@ -50,6 +64,19 @@ function specToFormParts(spec: string | null | undefined): {
         recurrenceKind: "every",
         recurrenceEveryDaysStr: String(r.days),
       };
+    case "monthlyNthWeekday":
+      return {
+        ...defaults,
+        recurrenceKind: "monthlyNthWeekday",
+        recurrenceOrdinal: r.ordinal,
+        recurrenceWeekday: r.weekday,
+      };
+    case "monthlyLastWeekday":
+      return {
+        ...defaults,
+        recurrenceKind: "monthlyLastWeekday",
+        recurrenceWeekday: r.weekday,
+      };
   }
 }
 
@@ -59,12 +86,7 @@ function parseRecurrencePart(str: string, min: number, max: number, fallback: nu
   return Math.min(n, max);
 }
 
-function formPartsToSpec(parts: {
-  recurrenceKind: RecurrenceKind;
-  recurrenceWeekday: number;
-  recurrenceMonthDayStr: string;
-  recurrenceEveryDaysStr: string;
-}): string | null {
+function formPartsToSpec(parts: RecurrenceFormParts): string | null {
   switch (parts.recurrenceKind) {
     case "none":
       return null;
@@ -78,6 +100,12 @@ function formPartsToSpec(parts: {
       return "monthly:lastday";
     case "every":
       return `every:${parseRecurrencePart(parts.recurrenceEveryDaysStr, 1, 3650, 7)}d`;
+    case "monthlyNthWeekday": {
+      const ord = Math.max(1, Math.min(5, parts.recurrenceOrdinal));
+      return `monthly:${ORDINAL_NAMES[ord - 1]}-${WEEKDAY_NAMES[parts.recurrenceWeekday]!}`;
+    }
+    case "monthlyLastWeekday":
+      return `monthly:last-${WEEKDAY_NAMES[parts.recurrenceWeekday]!}`;
   }
 }
 
@@ -118,6 +146,7 @@ interface FormState {
   recurrenceWeekday: number; // 0..6 (日..土)
   recurrenceMonthDayStr: string; // "1".."31" or ""
   recurrenceEveryDaysStr: string; // ">=1" or ""
+  recurrenceOrdinal: number; // v0.6.1: 第N曜日の N (1..5)
 }
 
 function taskToForm(t: Task): FormState {
@@ -164,9 +193,14 @@ function formsEqual(a: FormState, b: FormState): boolean {
     a.estimateHoursStr === b.estimateHoursStr &&
     a.actualHoursStr === b.actualHoursStr &&
     a.recurrenceKind === b.recurrenceKind &&
-    (a.recurrenceKind !== "weekly" || a.recurrenceWeekday === b.recurrenceWeekday) &&
+    // weekly / monthlyLastWeekday / monthlyNthWeekday は recurrenceWeekday を比較
+    ((a.recurrenceKind !== "weekly" &&
+      a.recurrenceKind !== "monthlyLastWeekday" &&
+      a.recurrenceKind !== "monthlyNthWeekday") ||
+      a.recurrenceWeekday === b.recurrenceWeekday) &&
     (a.recurrenceKind !== "monthlyDay" || a.recurrenceMonthDayStr === b.recurrenceMonthDayStr) &&
     (a.recurrenceKind !== "every" || a.recurrenceEveryDaysStr === b.recurrenceEveryDaysStr) &&
+    (a.recurrenceKind !== "monthlyNthWeekday" || a.recurrenceOrdinal === b.recurrenceOrdinal) &&
     subtasksEqual(a.subtasks, b.subtasks)
   );
 }
@@ -192,6 +226,7 @@ function diffFormState(a: FormState, b: FormState): Record<string, [unknown, unk
     "recurrenceWeekday",
     "recurrenceMonthDayStr",
     "recurrenceEveryDaysStr",
+    "recurrenceOrdinal",
   ];
   for (const k of keys) {
     if (a[k] !== b[k]) out[k] = [a[k], b[k]];
@@ -253,6 +288,7 @@ export function threeWayMerge(
     "recurrenceWeekday",
     "recurrenceMonthDayStr",
     "recurrenceEveryDaysStr",
+    "recurrenceOrdinal",
   ];
 
   for (const k of scalarKeys) {
@@ -704,10 +740,13 @@ export function DetailPane({ ctx }: { ctx: PluginContext }) {
               <option value="weekly">毎週○曜日</option>
               <option value="monthlyDay">毎月 N 日</option>
               <option value="monthlyLast">毎月末日</option>
+              <option value="monthlyNthWeekday">毎月 第N曜日</option>
+              <option value="monthlyLastWeekday">毎月 最終曜日</option>
               <option value="every">N 日ごと</option>
             </select>
           </label>
-          {form.recurrenceKind === "weekly" && (
+          {(form.recurrenceKind === "weekly" ||
+            form.recurrenceKind === "monthlyLastWeekday") && (
             <label className="kanban-field">
               <span className="kanban-field-label">曜日</span>
               <select
@@ -723,6 +762,40 @@ export function DetailPane({ ctx }: { ctx: PluginContext }) {
                 ))}
               </select>
             </label>
+          )}
+          {form.recurrenceKind === "monthlyNthWeekday" && (
+            <>
+              <label className="kanban-field">
+                <span className="kanban-field-label">第何回</span>
+                <select
+                  value={String(form.recurrenceOrdinal)}
+                  onChange={(e) =>
+                    setForm({ ...form, recurrenceOrdinal: Number(e.target.value) })
+                  }
+                >
+                  {ORDINAL_LABELS.map((label, i) => (
+                    <option key={i} value={String(i + 1)}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="kanban-field">
+                <span className="kanban-field-label">曜日</span>
+                <select
+                  value={String(form.recurrenceWeekday)}
+                  onChange={(e) =>
+                    setForm({ ...form, recurrenceWeekday: Number(e.target.value) })
+                  }
+                >
+                  {WEEKDAY_LABELS.map((label, i) => (
+                    <option key={i} value={String(i)}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
           )}
           {form.recurrenceKind === "monthlyDay" && (
             <label className="kanban-field">
