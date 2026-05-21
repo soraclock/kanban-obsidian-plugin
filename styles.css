@@ -680,11 +680,22 @@
 .kanban-root .kanban-detail-footer .kanban-detail-save:hover:not(:disabled) {
   background-color: var(--interactive-accent-hover);
 }
-.kanban-root .kanban-detail-footer .kanban-detail-freeze {
-  color: var(--text-muted);
+/* v0.5.0: ステータス移動ボタン群 (DetailPane footer) */
+.kanban-root .kanban-detail-move-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+  justify-content: center;
 }
-.kanban-root .kanban-detail-footer .kanban-detail-freeze:hover:not(:disabled) {
-  color: var(--interactive-accent);
+.kanban-root .kanban-detail-footer .kanban-detail-move-btn {
+  color: var(--text-muted);
+  padding: 4px 10px;
+  font-size: var(--font-ui-smaller);
+}
+.kanban-root .kanban-detail-footer .kanban-detail-move-btn:hover:not(:disabled) {
+  color: var(--text-on-accent);
+  background-color: var(--interactive-accent);
   border-color: var(--interactive-accent);
 }
 .kanban-root .kanban-detail-footer .kanban-detail-delete {
@@ -741,6 +752,72 @@
   color: var(--text-normal);
   border-color: var(--interactive-accent);
   background-color: var(--background-modifier-hover);
+}
+
+/* v0.5.0: モバイル限定 ステータスタブ + 単一カラム表示 */
+.kanban-root .kanban-mobile-board {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+.kanban-root .kanban-mobile-status-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px 6px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary-alt);
+}
+.kanban-root .kanban-mobile-status-tab {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.kanban-root .kanban-mobile-status-tab.is-active {
+  color: var(--text-on-accent);
+  background-color: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+}
+.kanban-root .kanban-mobile-status-tab-label {
+  font-weight: 600;
+}
+.kanban-root .kanban-mobile-status-tab-badge {
+  padding: 1px 6px;
+  font-size: var(--font-ui-smaller);
+  background-color: var(--background-secondary);
+  color: var(--text-normal);
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.kanban-root .kanban-mobile-status-tab.is-active .kanban-mobile-status-tab-badge {
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+}
+.kanban-root .kanban-mobile-board-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 6px;
+}
+/* モバイル時は単一カラムが画面幅全体を使う */
+.kanban-root .kanban-mobile-board-body .kanban-column {
+  width: 100%;
+  border: none;
+  background: transparent;
 }
 
 /* Phase 7 (タスク追加): インライン新規入力欄。

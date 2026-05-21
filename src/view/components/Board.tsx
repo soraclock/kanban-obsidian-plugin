@@ -27,7 +27,7 @@ import { ListView } from "./ListView";
 import { FocusView } from "./FocusView";
 import { CalendarView } from "./CalendarView";
 import { StatsView } from "./StatsView";
-import { useBoardStore } from "../../store/boardStore";
+import { useBoardStore, type BoardFilter } from "../../store/boardStore";
 import { STATUS_VALUES, type Status } from "../../data/TaskSchema";
 
 /**
@@ -45,6 +45,74 @@ import { computeAppendOrder, computeInsertOrder } from "../../data/orderCalc";
 import { filterTasks } from "../../data/TaskFilter";
 import type { PluginContext } from "../PluginContext";
 import { dndState } from "../dndState";
+
+/**
+ * モバイル限定: ステータスタブで 1 列ずつ切替表示する。
+ * 4 列縦積みのスクロール疲れを解消し、選んだ status だけ全画面で見せる。
+ */
+function MobileBoardTabs({
+  tasks,
+  filter,
+  visibleStatuses,
+  ctx,
+}: {
+  tasks: Task[];
+  filter: BoardFilter;
+  visibleStatuses: readonly Status[];
+  ctx: PluginContext;
+}) {
+  const mobileStatusTab = useBoardStore((s) => s.mobileStatusTab);
+  const setMobileStatusTab = useBoardStore((s) => s.setMobileStatusTab);
+
+  // ステータス絞り込みで現在タブが除外された場合、最初の visible status に fallback
+  const activeStatus = visibleStatuses.includes(mobileStatusTab)
+    ? mobileStatusTab
+    : (visibleStatuses[0] ?? "未着手");
+
+  // 各 status の件数 (フィルタ適用後ではなく status の絶対数を表示、視認性優先)
+  const counts = React.useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const s of visibleStatuses) c[s] = 0;
+    for (const t of tasks) {
+      if (Object.prototype.hasOwnProperty.call(c, t.status)) c[t.status]! += 1;
+    }
+    return c;
+  }, [tasks, visibleStatuses]);
+
+  const all = tasks.filter((t) => t.status === activeStatus);
+  const shown = filterTasks(all, filter);
+
+  return (
+    <div className="kanban-mobile-board">
+      <div className="kanban-mobile-status-tabs" role="tablist" aria-label="ステータスタブ">
+        {visibleStatuses.map((s) => {
+          const active = s === activeStatus;
+          return (
+            <button
+              key={s}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              className={`kanban-mobile-status-tab ${active ? "is-active" : ""}`}
+              onClick={() => setMobileStatusTab(s)}
+            >
+              <span className="kanban-mobile-status-tab-label">{s}</span>
+              <span className="kanban-mobile-status-tab-badge">{counts[s] ?? 0}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="kanban-mobile-board-body">
+        <Column
+          status={activeStatus}
+          tasks={shown}
+          totalCount={all.length}
+          ctx={ctx}
+        />
+      </div>
+    </div>
+  );
+}
 
 /**
  * 2 段階の collision detection:
@@ -551,21 +619,30 @@ export function Board({ app, ctx }: { app: App; ctx: PluginContext }) {
       <FilterBar />
       <RecentCompletedSummary tasks={tasks} />
       <div className="kanban-board-layout">
-        <div className="kanban-board">
-          {visibleStatuses.map((status) => {
-            const all = tasks.filter((t) => t.status === status);
-            const shown = filterTasks(all, filter);
-            return (
-              <Column
-                key={status}
-                status={status}
-                tasks={shown}
-                totalCount={all.length}
-                ctx={ctx}
-              />
-            );
-          })}
-        </div>
+        {Platform.isMobile ? (
+          <MobileBoardTabs
+            tasks={tasks}
+            filter={filter}
+            visibleStatuses={visibleStatuses}
+            ctx={ctx}
+          />
+        ) : (
+          <div className="kanban-board">
+            {visibleStatuses.map((status) => {
+              const all = tasks.filter((t) => t.status === status);
+              const shown = filterTasks(all, filter);
+              return (
+                <Column
+                  key={status}
+                  status={status}
+                  tasks={shown}
+                  totalCount={all.length}
+                  ctx={ctx}
+                />
+              );
+            })}
+          </div>
+        )}
         <DetailPane ctx={ctx} />
       </div>
       {/* Obsidian workspace の祖先要素に transform が掛かっている可能性があるため、

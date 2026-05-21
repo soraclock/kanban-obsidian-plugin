@@ -109,6 +109,9 @@ interface BoardState {
   viewMode: ViewMode;
   /** 現在のビュー */
   currentView: CurrentView;
+  /** v0.5.0: モバイル時にタブ表示で選ばれている status。セッション内のみ。
+   *  デスクトップでは未使用（4 列ボードを使う）。デフォルトは "未着手"。 */
+  mobileStatusTab: Status;
 
   setTasks: (tasks: Task[]) => void;
   setLoading: (loading: boolean) => void;
@@ -139,6 +142,8 @@ interface BoardState {
   setViewMode: (mode: ViewMode) => void;
   /** ビュー切替 */
   setCurrentView: (view: CurrentView) => void;
+  /** モバイルタブ切替 */
+  setMobileStatusTab: (status: Status) => void;
   /** Phase 9: ボード内レイアウトモード（board/list/focus/calendar/stats） */
   layoutMode: LayoutMode;
   /** Phase 9: layoutMode = focus のときに表示する 1 ステータス */
@@ -175,6 +180,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   filter: DEFAULT_FILTER,
   viewMode: "detailed",
   currentView: "board",
+  mobileStatusTab: "未着手",
   layoutMode: "board",
   focusedStatus: "進行中",
   savedFilters: loadSavedFilters(),
@@ -207,6 +213,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   setFilter: (filter) => set((s) => ({ filter: { ...s.filter, ...filter } })),
   resetFilter: () => set({ filter: DEFAULT_FILTER }),
   setViewMode: (mode) => set({ viewMode: mode }),
+  setMobileStatusTab: (status) => set({ mobileStatusTab: status }),
   setCurrentView: (view) => {
     const prev = get().currentView;
     // ビューが実際に変わるときだけ DetailPane も閉じる (同ビューのタブ再クリックで強制 close するのを避ける)。

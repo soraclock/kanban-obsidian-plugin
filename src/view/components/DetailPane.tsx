@@ -1,7 +1,13 @@
 import * as React from "react";
 import { Notice } from "obsidian";
 import { useBoardStore } from "../../store/boardStore";
-import { STATUS_VALUES, PRIORITY_VALUES, type Status, type Priority } from "../../data/TaskSchema";
+import {
+  STATUS_VALUES,
+  MOVABLE_STATUSES,
+  PRIORITY_VALUES,
+  type Status,
+  type Priority,
+} from "../../data/TaskSchema";
 import { ConflictError } from "../../data/ContentHash";
 import type { Task, Subtask } from "../../data/Task";
 import type { PluginContext } from "../PluginContext";
@@ -455,9 +461,14 @@ export function DetailPane({ ctx }: { ctx: PluginContext }) {
     }
   };
 
-  const onFreeze = async (): Promise<void> => {
+  /**
+   * v0.5.0: status をワンタッチで移動する汎用関数。
+   * 「凍結に移動」「→ 未着手」「→ 進行中」「→ 確認待ち」のすべてから呼ばれる。
+   * 完了は Card 上の「今回分を完了」ボタン経由のみ（履歴生成のため）。
+   */
+  const onMoveStatus = async (target: Status): Promise<void> => {
     if (!task || !baselineHash) return;
-    if (dirty && !window.confirm("未保存の変更があります。変更は破棄して凍結のみ実行しますか？")) {
+    if (dirty && !window.confirm(`未保存の変更があります。変更は破棄して「${target}」に移動しますか？`)) {
       return;
     }
     setSaving(true);
@@ -465,32 +476,32 @@ export function DetailPane({ ctx }: { ctx: PluginContext }) {
       const result = await ctx.taskWriter.updateStatus(
         task.filePath,
         baselineHash,
-        "凍結",
+        target,
       );
       ctx.history.push({
         type: "status",
         filePath: task.filePath,
         before: { status: task.status },
-        after: { status: "凍結" },
+        after: { status: target },
         afterHash: result.newHash,
         ts: new Date().toISOString(),
       });
-      new Notice("凍結に移動しました");
+      new Notice(`${target} に移動しました`);
       try {
         const fresh = await ctx.taskRepository.readOne(task.filePath);
         if (fresh) useBoardStore.getState().upsertTask(fresh);
       } catch (e) {
-        console.warn("[kanban] post-freeze refresh failed:", e);
+        console.warn("[kanban] post-move refresh failed:", e);
       }
       closeDetail();
     } catch (e) {
       if (e instanceof ConflictError) {
-        new Notice("凍結失敗: ファイルが他で変更されました");
+        new Notice(`${target} への移動失敗: ファイルが他で変更されました`);
         setConflict("save-failed");
       } else {
         const msg = e instanceof Error ? e.message.slice(0, 80) : "不明なエラー";
-        new Notice(`凍結失敗: ${msg}`);
-        console.error("[kanban] freeze failed:", e);
+        new Notice(`${target} への移動失敗: ${msg}`);
+        console.error("[kanban] move status failed:", e);
       }
     } finally {
       setSaving(false);
@@ -903,15 +914,28 @@ export function DetailPane({ ctx }: { ctx: PluginContext }) {
         >
           削除
         </button>
-        {task.status !== "完了" && task.status !== "凍結" && (
-          <button
-            type="button"
-            className="kanban-detail-freeze"
-            onClick={onFreeze}
-            disabled={saving}
-          >
-            凍結に移動
-          </button>
+        {/* v0.5.0: ステータス移動ボタン群。
+         *  - 定期タスクは「定期」列に常駐すべきなので移動ボタン非表示
+         *  - 完了は Card 上の「今回分を完了」ボタン経由のみ（履歴生成のため）
+         *  - 現在 status はボタンから除外 */}
+        {task.status !== "定期" && (
+          <div className="kanban-detail-move-buttons" role="group" aria-label="ステータス移動">
+            {MOVABLE_STATUSES.map((s) =>
+              s === task.status ? null : (
+                <button
+                  key={s}
+                  type="button"
+                  className="kanban-detail-move-btn"
+                  onClick={() => {
+                    void onMoveStatus(s);
+                  }}
+                  disabled={saving}
+                >
+                  → {s}
+                </button>
+              ),
+            )}
+          </div>
         )}
         <div className="kanban-detail-footer-right">
           <button type="button" onClick={onCancel} disabled={saving}>

@@ -3,6 +3,14 @@ import { z } from "zod";
 export const STATUS_VALUES = ["定期", "未着手", "進行中", "確認待ち", "完了", "凍結"] as const;
 export type Status = (typeof STATUS_VALUES)[number];
 
+/**
+ * DetailPane の「ステータス移動」ボタン群で利用可能な遷移先。
+ * - 「定期」は別運用（定期列に常駐、完了ボタンから履歴生成）
+ * - 「完了」は Card 上の「今回分を完了」ボタン経由のみ（履歴生成のため）
+ * - 残りの未着手 / 進行中 / 確認待ち / 凍結 をワンタッチ移動ボタンに出す
+ */
+export const MOVABLE_STATUSES = ["未着手", "進行中", "確認待ち", "凍結"] as const;
+
 export const PRIORITY_VALUES = ["P0", "P1", "P2", "P3"] as const;
 export type Priority = (typeof PRIORITY_VALUES)[number];
 
