@@ -5,6 +5,7 @@ import { filterTasks } from "../../data/TaskFilter";
 import { DetailPane } from "./DetailPane";
 import type { Task } from "../../data/Task";
 import type { PluginContext } from "../PluginContext";
+import { parseRecurrence, expandRecurrencesInMonth } from "../../data/Recurrence";
 
 /**
  * Phase 10 (P1): カレンダービュー。
@@ -24,6 +25,13 @@ function ymd(y: number, m: number, d: number): string {
 function todayYmd(): string {
   const d = new Date();
   return ymd(d.getFullYear(), d.getMonth() + 1, d.getDate());
+}
+
+interface ChipEntry {
+  task: Task;
+  /** v0.6.0: status=定期 の親の recurrence から仮想展開された予定日チップ。
+   *  実ファイルではなく親 task を参照、見た目で実チップと区別する。 */
+  isRecurringPreview: boolean;
 }
 
 interface MonthGrid {
@@ -80,31 +88,53 @@ export function CalendarView({ ctx }: { ctx: PluginContext }) {
     return filtered.filter((t) => t.status !== "完了" && t.status !== "凍結");
   }, [tasks, filter]);
 
-  // due ベースで日付ごとに分配
+  // due ベースで日付ごとに分配。v0.6.0: status=定期 + recurrence のタスクは
+  // recurrence パターンから表示中の月の予定日を仮想展開して追加 (isRecurringPreview)。
+  // 仮想チップは実ファイルでなく親タスクを参照する。
   const byDate = useMemo(() => {
-    const map = new Map<string, Task[]>();
+    const map = new Map<string, ChipEntry[]>();
     for (const t of visibleTasks) {
-      if (!t.due) continue;
-      const arr = map.get(t.due) ?? [];
-      arr.push(t);
-      map.set(t.due, arr);
+      if (t.due) {
+        const arr = map.get(t.due) ?? [];
+        arr.push({ task: t, isRecurringPreview: false });
+        map.set(t.due, arr);
+      }
+      // 定期タスクの recurrence を月内に仮想展開
+      if (t.status === "定期" && t.recurrence) {
+        const rec = parseRecurrence(t.recurrence);
+        if (!rec) continue;
+        const base = t.due ? new Date(t.due + "T00:00:00") : null;
+        const dates = expandRecurrencesInMonth(rec, base, cursor.year, cursor.month - 1);
+        for (const d of dates) {
+          // 親の due 自身は実チップとして既に出ているので、ここでは重複して出さない
+          if (d === t.due) continue;
+          const arr = map.get(d) ?? [];
+          arr.push({ task: t, isRecurringPreview: true });
+          map.set(d, arr);
+        }
+      }
     }
-    // 優先度 P0→P3、その中で order 昇順
+    // 優先度 P0→P3、その中で 実チップ → 仮想チップ、order 昇順
     const rank: Record<string, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
     for (const arr of map.values()) {
       arr.sort((a, b) => {
-        const pa = rank[a.priority] ?? 9;
-        const pb = rank[b.priority] ?? 9;
+        const pa = rank[a.task.priority] ?? 9;
+        const pb = rank[b.task.priority] ?? 9;
         if (pa !== pb) return pa - pb;
-        return (a.order ?? 0) - (b.order ?? 0);
+        if (a.isRecurringPreview !== b.isRecurringPreview) {
+          return a.isRecurringPreview ? 1 : -1;
+        }
+        return (a.task.order ?? 0) - (b.task.order ?? 0);
       });
     }
     return map;
-  }, [visibleTasks]);
+  }, [visibleTasks, cursor]);
 
+  // v0.6.0: 月内合計は実チップのみカウント。仮想予定チップ (定期の展開) は除外して、
+  // ユーザーが「期限あり N 件」の数字を実タスクの感覚で読めるようにする。
   const monthTotal = Array.from(byDate.entries())
     .filter(([k]) => k.startsWith(`${cursor.year}-${String(cursor.month).padStart(2, "0")}`))
-    .reduce((n, [, arr]) => n + arr.length, 0);
+    .reduce((n, [, arr]) => n + arr.filter((e) => !e.isRecurringPreview).length, 0);
 
   const goPrev = (): void => {
     const m = cursor.month === 1 ? 12 : cursor.month - 1;
@@ -167,18 +197,29 @@ export function CalendarView({ ctx }: { ctx: PluginContext }) {
                   )}
                 </div>
                 <div className="kanban-calendar-cell-body">
-                  {items.slice(0, 4).map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      className={`kanban-calendar-chip kanban-priority-${t.priority.toLowerCase()}`}
-                      onClick={() => openDetail(t.filePath)}
-                      title={`${t.id} ${t.title}`}
-                    >
-                      <span className="kanban-calendar-chip-prio">{t.priority}</span>
-                      <span className="kanban-calendar-chip-title">{t.title}</span>
-                    </button>
-                  ))}
+                  {items.slice(0, 4).map((entry, idx) => {
+                    const t = entry.task;
+                    const preview = entry.isRecurringPreview;
+                    return (
+                      <button
+                        key={`${t.id}-${idx}-${preview ? "p" : "r"}`}
+                        type="button"
+                        className={`kanban-calendar-chip kanban-priority-${t.priority.toLowerCase()} ${preview ? "is-recurring-preview" : ""}`}
+                        onClick={() => openDetail(t.filePath)}
+                        title={
+                          preview
+                            ? `${t.id} ${t.title}（定期の予定）`
+                            : `${t.id} ${t.title}`
+                        }
+                      >
+                        {preview && (
+                          <span className="kanban-calendar-chip-recurring-mark">定</span>
+                        )}
+                        <span className="kanban-calendar-chip-prio">{t.priority}</span>
+                        <span className="kanban-calendar-chip-title">{t.title}</span>
+                      </button>
+                    );
+                  })}
                   {items.length > 4 && (
                     <span className="kanban-calendar-chip-more">+{items.length - 4}</span>
                   )}

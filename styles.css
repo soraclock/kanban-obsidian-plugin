@@ -326,6 +326,16 @@
   font-size: var(--font-ui-smaller);
   color: var(--text-muted);
 }
+/* v0.6.0: 定期タスクの recurrence ラベル（カード上で次の予定パターンを視認） */
+.kanban-root .kanban-card-recurrence {
+  font-size: var(--font-ui-smaller);
+  padding: 1px 6px;
+  border-radius: 3px;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
 
 .kanban-root .kanban-badge {
   display: inline-block;
@@ -1824,6 +1834,22 @@
 .kanban-root .kanban-calendar-chip:hover {
   border-color: var(--interactive-accent);
 }
+/* v0.6.0: 定期タスクの仮想予定チップ (recurrence から計算された未来予定)。
+ * 実チップと区別するため、border を破線にして「予定」感を出す + 「定」マーカー付き。 */
+.kanban-root .kanban-calendar-chip.is-recurring-preview {
+  border-style: dashed;
+  opacity: 0.85;
+}
+.kanban-root .kanban-calendar-chip-recurring-mark {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 0 3px;
+  border-radius: 3px;
+  background-color: rgba(255, 255, 255, 0.25);
+  margin-right: 2px;
+}
+
 /* 優先度別の solid 色背景 + 明示文字色。
  * alpha 背景は dark mode で黒に引っ張られて判別困難だったため solid に切り替え。
  * P2 (黄) のみ黒文字で視認性確保。 */

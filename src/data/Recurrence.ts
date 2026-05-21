@@ -117,3 +117,94 @@ function addMonths(y: number, m: number, n: number): { y: number; m: number } {
   const total = y * 12 + m + n;
   return { y: Math.floor(total / 12), m: total % 12 };
 }
+
+/**
+ * v0.6.0: 指定月 (year, month) 内に該当する recurrence の予定日を全部返す。
+ *
+ * - daily: 月内の全日
+ * - weekly: 該当曜日の全日
+ * - monthlyDay: 指定日（月末超えは月末に丸め）
+ * - monthlyLast: 月末
+ * - every:Nd: base 日付から N 日ごとに進めて月内に該当する日（base 未指定なら空）
+ *
+ * 返り値は YYYY-MM-DD の昇順配列。base はカレンダーで未来予定を表示する目的なので、
+ * base が月より前でも未来分を計算する。
+ */
+export function expandRecurrencesInMonth(
+  rec: Recurrence,
+  base: Date | null,
+  year: number,
+  month: number, // 0-11
+): string[] {
+  const result: string[] = [];
+  const lastDate = new Date(year, month + 1, 0).getDate();
+  const ymdAt = (d: number): string => ymd(new Date(year, month, d));
+
+  switch (rec.kind) {
+    case "daily":
+      for (let d = 1; d <= lastDate; d++) result.push(ymdAt(d));
+      return result;
+    case "weekly":
+      for (let d = 1; d <= lastDate; d++) {
+        if (new Date(year, month, d).getDay() === rec.weekday) {
+          result.push(ymdAt(d));
+        }
+      }
+      return result;
+    case "monthlyDay":
+      result.push(ymdAt(Math.min(rec.day, lastDate)));
+      return result;
+    case "monthlyLast":
+      result.push(ymdAt(lastDate));
+      return result;
+    case "every": {
+      if (!base) return result;
+      // base から N 日ずつ前後に振って、月内の日付を集める。
+      // DST 影響を避けるため、日付加算は new Date(y, m, d + n) で行う。
+      const monthStart = new Date(year, month, 1);
+      let cur = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+      // base が月より前なら、month に入るまで進める
+      while (cur < monthStart) {
+        cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + rec.days);
+      }
+      // 月内なら全部 push、月を越えたら終了
+      while (cur.getFullYear() === year && cur.getMonth() === month) {
+        result.push(ymdAt(cur.getDate()));
+        cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + rec.days);
+      }
+      return result;
+    }
+  }
+}
+
+const WEEKDAY_LABEL_FULL: Record<number, string> = {
+  0: "日曜",
+  1: "月曜",
+  2: "火曜",
+  3: "水曜",
+  4: "木曜",
+  5: "金曜",
+  6: "土曜",
+};
+
+/**
+ * v0.6.0: recurrence 書式を人間語ラベルに変換する。
+ * 不正な書式 / null は null を返す（呼び出し側で「表示しない」を選べる）。
+ */
+export function recurrenceLabel(spec: string | null | undefined): string | null {
+  if (!spec) return null;
+  const r = parseRecurrence(spec);
+  if (!r) return null;
+  switch (r.kind) {
+    case "daily":
+      return "毎日";
+    case "weekly":
+      return `毎週${WEEKDAY_LABEL_FULL[r.weekday] ?? ""}`;
+    case "monthlyDay":
+      return `毎月${r.day}日`;
+    case "monthlyLast":
+      return "毎月末日";
+    case "every":
+      return `${r.days}日ごと`;
+  }
+}

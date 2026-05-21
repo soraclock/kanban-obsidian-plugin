@@ -3,6 +3,8 @@ import {
   parseRecurrence,
   isValidRecurrenceSpec,
   nextDueDate,
+  expandRecurrencesInMonth,
+  recurrenceLabel,
 } from "../../src/data/Recurrence";
 
 describe("parseRecurrence", () => {
@@ -141,5 +143,99 @@ describe("nextDueDate", () => {
         "2026-05-26",
       );
     });
+  });
+});
+
+describe("expandRecurrencesInMonth", () => {
+  it("daily: 月内の全日を返す (2026-05 は 31 日)", () => {
+    const result = expandRecurrencesInMonth({ kind: "daily" }, null, 2026, 4); // month 4 = 5月
+    expect(result).toHaveLength(31);
+    expect(result[0]).toBe("2026-05-01");
+    expect(result[30]).toBe("2026-05-31");
+  });
+
+  it("weekly:mon: 2026-05 内の月曜を全部返す", () => {
+    const result = expandRecurrencesInMonth(
+      { kind: "weekly", weekday: 1 },
+      null,
+      2026,
+      4,
+    );
+    // 2026年5月の月曜は 4, 11, 18, 25
+    expect(result).toEqual(["2026-05-04", "2026-05-11", "2026-05-18", "2026-05-25"]);
+  });
+
+  it("monthlyDay: 指定日が月内に存在", () => {
+    expect(expandRecurrencesInMonth({ kind: "monthlyDay", day: 15 }, null, 2026, 4)).toEqual([
+      "2026-05-15",
+    ]);
+  });
+
+  it("monthlyDay: 月末超えは月末に丸める (2月に31日指定 → 2月28日)", () => {
+    expect(
+      expandRecurrencesInMonth({ kind: "monthlyDay", day: 31 }, null, 2026, 1), // month 1 = 2月
+    ).toEqual(["2026-02-28"]);
+  });
+
+  it("monthlyLast: 各月の月末", () => {
+    expect(expandRecurrencesInMonth({ kind: "monthlyLast" }, null, 2026, 4)).toEqual([
+      "2026-05-31",
+    ]);
+    expect(expandRecurrencesInMonth({ kind: "monthlyLast" }, null, 2026, 1)).toEqual([
+      "2026-02-28",
+    ]);
+  });
+
+  it("every:Nd: base から N 日ごとに月内の日付を集める", () => {
+    // base=2026-05-04, every:7d → 2026-05 内: 4, 11, 18, 25
+    const result = expandRecurrencesInMonth(
+      { kind: "every", days: 7 },
+      new Date(2026, 4, 4),
+      2026,
+      4,
+    );
+    expect(result).toEqual(["2026-05-04", "2026-05-11", "2026-05-18", "2026-05-25"]);
+  });
+
+  it("every:Nd: base が翌月以降でも未来月で正しく展開", () => {
+    // base=2026-04-30, every:5d → 2026-05 内: 5, 10, 15, 20, 25, 30
+    const result = expandRecurrencesInMonth(
+      { kind: "every", days: 5 },
+      new Date(2026, 3, 30),
+      2026,
+      4,
+    );
+    expect(result).toEqual([
+      "2026-05-05",
+      "2026-05-10",
+      "2026-05-15",
+      "2026-05-20",
+      "2026-05-25",
+      "2026-05-30",
+    ]);
+  });
+
+  it("every:Nd: base が null なら空配列 (基準なしでは計算不能)", () => {
+    expect(
+      expandRecurrencesInMonth({ kind: "every", days: 7 }, null, 2026, 4),
+    ).toEqual([]);
+  });
+});
+
+describe("recurrenceLabel", () => {
+  it("各書式を人間語に変換", () => {
+    expect(recurrenceLabel("daily")).toBe("毎日");
+    expect(recurrenceLabel("weekly:mon")).toBe("毎週月曜");
+    expect(recurrenceLabel("weekly:fri")).toBe("毎週金曜");
+    expect(recurrenceLabel("monthly:15")).toBe("毎月15日");
+    expect(recurrenceLabel("monthly:lastday")).toBe("毎月末日");
+    expect(recurrenceLabel("every:7d")).toBe("7日ごと");
+  });
+
+  it("null / 不正書式は null", () => {
+    expect(recurrenceLabel(null)).toBeNull();
+    expect(recurrenceLabel(undefined)).toBeNull();
+    expect(recurrenceLabel("")).toBeNull();
+    expect(recurrenceLabel("invalid-spec")).toBeNull();
   });
 });

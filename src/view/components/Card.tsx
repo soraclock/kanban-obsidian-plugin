@@ -10,6 +10,7 @@ import { ConflictError } from "../../data/ContentHash";
 import type { PluginContext } from "../PluginContext";
 import { formatYmdForDisplay } from "../../util/dateFormat";
 import { resolveTagColor, readableTextColor, sortByTagOrder } from "../../util/tagColor";
+import { recurrenceLabel } from "../../data/Recurrence";
 
 function CardTagList({ tags }: { tags: string[] }) {
   const tagConfig = useBoardStore((s) => s.tagConfig);
@@ -116,6 +117,19 @@ export function CardView({
       <div className="kanban-card-title">{task.title}</div>
       <div className="kanban-card-meta">
         <span className={`kanban-badge ${priorityClass}`}>{task.priority}</span>
+        {/* v0.6.0: 定期タスクは recurrence ラベルを表示 (例: 「定期 · 毎週月曜」)。
+         * recurrenceLabel が null (不正書式) なら表示しない。 */}
+        {task.status === "定期" &&
+          task.recurrence &&
+          (() => {
+            const label = recurrenceLabel(task.recurrence);
+            if (!label) return null;
+            return (
+              <span className="kanban-card-recurrence" title={`recurrence: ${task.recurrence}`}>
+                定期 · {label}
+              </span>
+            );
+          })()}
         {due && <span className={due.className}>{due.label}</span>}
         {total > 0 && (
           <span className="kanban-subtasks">
