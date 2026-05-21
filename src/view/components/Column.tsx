@@ -1,9 +1,6 @@
 import * as React from "react";
 import { useState } from "react";
 import { Notice } from "obsidian";
-
-/** onBlur の setTimeout 遅延 (ms)。Enter 中の onConfirm を妨げない最小値 */
-const BLUR_CANCEL_DELAY_MS = 100;
 import { useSortable, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { Card } from "./Card";
@@ -58,10 +55,8 @@ export function Column({
 
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
-  // #1: stale closure 対策 — onChange と onBlur/onKeyDown の両方で ref を更新して読む
+  // stale closure 対策: onChange と確定処理の両方で同期した値を読むため ref も保持
   const newTitleRef = React.useRef("");
-  /** onConfirm 実行中フラグ。onBlur の空判定を skip するために使う */
-  const confirmingRef = React.useRef(false);
   /** subscribe の unsub を unmount cleanup で呼ぶための ref */
   const unsubRef = React.useRef<(() => void) | null>(null);
   const openDetail = useBoardStore((s) => s.openDetail);
@@ -78,7 +73,6 @@ export function Column({
       newTitleRef.current = "";
       return;
     }
-    confirmingRef.current = true;
     try {
       const r = await ctx.taskCreator.createTask({ title, status });
       new Notice(`作成しました: ${r.newId}`);
@@ -123,8 +117,6 @@ export function Column({
       new Notice(`作成失敗: ${msg}`);
       console.error("[kanban] create task failed:", e);
       setCreating(false);
-    } finally {
-      confirmingRef.current = false;
     }
   };
 
@@ -169,27 +161,45 @@ export function Column({
                   newTitleRef.current = e.target.value;
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    void onConfirm();
-                  } else if (e.key === "Escape") {
+                  // Enter での自動確定は廃止。入力中の誤発火を防ぐため、明示的に
+                  // 右の ✓ ボタンクリックでのみ作成する。Escape はキャンセルのまま維持。
+                  if (e.key === "Escape") {
                     setCreating(false);
                     setNewTitle("");
                     newTitleRef.current = "";
                   }
                 }}
-                onBlur={() => {
-                  // フォーカス外れたら自動 cancel（ただし Enter 中の onConfirm を妨げないよう少し遅延）
-                  // #1: ref で最新値を読む (stale closure 回避)
-                  setTimeout(() => {
-                    if (!confirmingRef.current && newTitleRef.current.trim() === "") {
-                      setCreating(false);
-                      setNewTitle("");
-                      newTitleRef.current = "";
-                    }
-                  }, BLUR_CANCEL_DELAY_MS);
-                }}
               />
+              <button
+                type="button"
+                className="kanban-column-new-confirm"
+                aria-label="このタスクを作成"
+                title="作成"
+                disabled={newTitle.trim() === ""}
+                onMouseDown={(e) => {
+                  // モバイルでソフトキーボードを閉じさせない / focus loss 抑止
+                  e.preventDefault();
+                }}
+                onClick={() => {
+                  void onConfirm();
+                }}
+              >
+                ✓
+              </button>
+              <button
+                type="button"
+                className="kanban-column-new-cancel"
+                aria-label="キャンセル"
+                title="キャンセル"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setCreating(false);
+                  setNewTitle("");
+                  newTitleRef.current = "";
+                }}
+              >
+                ×
+              </button>
             </div>
           )}
           {sorted.length === 0 ? (

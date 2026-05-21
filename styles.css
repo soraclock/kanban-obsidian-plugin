@@ -687,6 +687,14 @@
   color: var(--interactive-accent);
   border-color: var(--interactive-accent);
 }
+.kanban-root .kanban-detail-footer .kanban-detail-delete {
+  color: var(--text-muted);
+}
+.kanban-root .kanban-detail-footer .kanban-detail-delete:hover:not(:disabled) {
+  color: var(--text-on-accent);
+  background-color: var(--text-error);
+  border-color: var(--text-error);
+}
 
 /* --- Conflict banner --- */
 .kanban-root .kanban-conflict-banner {
@@ -735,12 +743,17 @@
   background-color: var(--background-modifier-hover);
 }
 
-/* Phase 7 (タスク追加): インライン新規入力欄 */
+/* Phase 7 (タスク追加): インライン新規入力欄。
+ * v0.3.0: Enter での自動確定を廃止し、明示的な ✓ / × ボタン操作に変更。 */
 .kanban-root .kanban-column-new {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   padding: 4px 6px;
 }
 .kanban-root .kanban-column-new-input {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 6px 8px;
   font-size: var(--font-ui-small);
   color: var(--text-normal);
@@ -751,6 +764,36 @@
 }
 .kanban-root .kanban-column-new-input:focus {
   outline: none;
+}
+.kanban-root .kanban-column-new-confirm,
+.kanban-root .kanban-column-new-cancel {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+  padding: 0;
+}
+.kanban-root .kanban-column-new-confirm:hover:not(:disabled) {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+.kanban-root .kanban-column-new-confirm:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.kanban-root .kanban-column-new-cancel:hover {
+  color: var(--text-error);
+  border-color: var(--text-error);
 }
 
 /* =====================================================================

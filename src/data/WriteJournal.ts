@@ -25,7 +25,9 @@ export type JournalOp =
   /** Phase 7: アーカイブから tasks/ への復元 (内容変更なし) */
   | "restore"
   /** Phase 7: 新規タスク作成 */
-  | "createTask";
+  | "createTask"
+  /** v0.3.0: タスクを OS ゴミ箱経由で削除 */
+  | "deleteTask";
 
 export interface JournalEntry {
   ts: string;

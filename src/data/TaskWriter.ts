@@ -421,6 +421,54 @@ export class TaskWriter {
   }
 
   /**
+   * v0.3.0: タスクファイルを OS ゴミ箱に送る (誤削除でも OS のゴミ箱から復元可能)。
+   * - expectedHash で楽観的並行制御
+   * - PathLock で他 write と直列化
+   * - Obsidian の `vault.trash(file, system=true)` を使用 (OS ゴミ箱、vault.delete よりも安全)
+   * - Journal に op="deleteTask" を append
+   */
+  async deleteTask(
+    filePath: string,
+    tasksDir: string,
+    expectedHash: string,
+    actor: JournalEntry["actor"] = "user",
+  ): Promise<void> {
+    if (!isSafeRelativePath(tasksDir)) throw new Error(`invalid tasksDir: ${tasksDir}`);
+    if (!isSafeRelativePath(filePath)) throw new Error(`invalid filePath: ${filePath}`);
+    if (!filePath.startsWith(tasksDir + "/")) {
+      throw new Error(`delete path outside tasks dir: ${filePath}`);
+    }
+    return this.pathLock.with(filePath, async () => {
+      const file = this.getTFile(filePath);
+      const before = await this.app.vault.read(file);
+      const beforeHash = sha256(before);
+      if (beforeHash !== expectedHash) {
+        throw new ConflictError(
+          `content hash mismatch for ${filePath}`,
+          filePath,
+          expectedHash,
+          beforeHash,
+        );
+      }
+
+      // OS のゴミ箱に送る (system=true)。誤削除でも OS 側で復元可能。
+      await this.app.vault.trash(file, true);
+
+      await this.journal.append({
+        ts: new Date().toISOString(),
+        op: "deleteTask",
+        path: filePath,
+        beforeHash,
+        afterHash: beforeHash, // ファイルは消えるが、操作前 hash を記録
+        actor,
+        approved: true,
+        beforeData: { from: filePath },
+        afterData: { trashed: true },
+      });
+    });
+  }
+
+  /**
    * Phase 7: アーカイブから tasks/ 直下へ復元する (rename only)。
    * - archivedPath は `<tasksDir>/_archive/...` 配下である必要がある
    * - ファイル名 (K-NNNN-...) を取り出し `<tasksDir>/{fileName}` に rename

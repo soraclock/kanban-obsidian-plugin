@@ -502,6 +502,36 @@ export function DetailPane({ ctx }: { ctx: PluginContext }) {
     closeDetail();
   };
 
+  const onDelete = async (): Promise<void> => {
+    if (!task || !baselineHash) return;
+    const dirtyNotice = dirty ? "\n未保存の変更は破棄されます。" : "";
+    if (
+      !window.confirm(
+        `「${task.title}」を削除しますか？${dirtyNotice}\n（OS のゴミ箱に移動するので、間違えても復元できます）`,
+      )
+    ) {
+      return;
+    }
+    setSaving(true);
+    try {
+      await ctx.taskWriter.deleteTask(task.filePath, ctx.tasksDir, baselineHash);
+      new Notice("タスクを削除しました（OS のゴミ箱に移動）");
+      useBoardStore.getState().removeTask(task.filePath);
+      closeDetail();
+    } catch (e) {
+      if (e instanceof ConflictError) {
+        new Notice("削除失敗: ファイルが他で変更されました");
+        setConflict("save-failed");
+      } else {
+        const msg = e instanceof Error ? e.message.slice(0, 80) : "不明なエラー";
+        new Notice(`削除失敗: ${msg}`);
+        console.error("[kanban] delete failed:", e);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const onConflictReload = (): void => {
     // 最新を読み直して form リセット + baseline 再設定
     const nextForm = taskToForm(task);
@@ -863,6 +893,16 @@ export function DetailPane({ ctx }: { ctx: PluginContext }) {
       </div>
 
       <footer className="kanban-detail-footer">
+        <button
+          type="button"
+          className="kanban-detail-delete"
+          onClick={() => {
+            void onDelete();
+          }}
+          disabled={saving}
+        >
+          削除
+        </button>
         {task.status !== "完了" && task.status !== "凍結" && (
           <button
             type="button"
