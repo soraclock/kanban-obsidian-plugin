@@ -50,12 +50,13 @@ export default class KanbanPlugin extends Plugin {
     console.log("[kanban] plugin loading...");
 
     await this.loadSettings();
-    // 起動時にタグ設定を boardStore に同期 (view が初期描画時に反映できるように)
+    // 起動時にタグ設定・添付保存先を boardStore に同期 (view が初期描画時に反映できるように)
     useBoardStore.getState().setTagConfig({
       tagOrder: this.settings.tagOrder,
       tagColors: this.settings.tagColors,
       autoColorEnabled: this.settings.autoColorEnabled,
     });
+    useBoardStore.getState().setAttachmentDir(this.settings.attachmentDir);
 
     this.lifecycle = new PluginLifecycle(this);
     await this.lifecycle.onLoad();
@@ -368,6 +369,7 @@ export default class KanbanPlugin extends Plugin {
             )
           : {},
       autoColorEnabled: data.autoColorEnabled !== false, // 未設定 / undefined は true
+      attachmentDir: typeof data.attachmentDir === "string" ? data.attachmentDir : "",
     };
   }
 
@@ -382,6 +384,7 @@ export default class KanbanPlugin extends Plugin {
       tagColors: this.settings.tagColors,
       autoColorEnabled: this.settings.autoColorEnabled,
     });
+    useBoardStore.getState().setAttachmentDir(this.settings.attachmentDir);
   }
 
   async saveSettings(): Promise<void> {
@@ -392,13 +395,15 @@ export default class KanbanPlugin extends Plugin {
       tagOrder: this.settings.tagOrder,
       tagColors: this.settings.tagColors,
       autoColorEnabled: this.settings.autoColorEnabled,
+      attachmentDir: this.settings.attachmentDir,
     });
-    // タグ設定を boardStore にミラーして view を即時更新
+    // タグ設定・添付保存先を boardStore にミラーして view を即時更新
     useBoardStore.getState().setTagConfig({
       tagOrder: this.settings.tagOrder,
       tagColors: this.settings.tagColors,
       autoColorEnabled: this.settings.autoColorEnabled,
     });
+    useBoardStore.getState().setAttachmentDir(this.settings.attachmentDir);
   }
 
   async onunload() {

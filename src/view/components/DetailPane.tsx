@@ -877,6 +877,7 @@ export function DetailPane({ ctx }: { ctx: PluginContext }) {
 
         <ImageAttachments
           app={ctx.app}
+          tasksDir={ctx.tasksDir}
           taskId={task.id}
           bodyMarkdown={`${form.description}\n\n${form.memo}`}
           onInsert={(filename) => {

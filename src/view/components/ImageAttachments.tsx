@@ -1,5 +1,7 @@
 import * as React from "react";
 import { Notice, type App, type TFile } from "obsidian";
+import { useBoardStore } from "../../store/boardStore";
+import { resolveAttachmentDir } from "../../settings/PluginSettings";
 
 /**
  * Phase 9: タスク詳細ペインの添付ファイルセクション（画像 + PDF）。
@@ -9,9 +11,9 @@ import { Notice, type App, type TFile } from "obsidian";
  * - ドラッグ&ドロップ: このセクション領域に drop（画像 + PDF）
  * - ファイル選択ボタン（画像 + PDF）
  *
- * 保存先:
- * - Obsidian の `attachmentFolderPath` 設定に従う (vault.getConfig 経由)
- * - 設定が "/" or "" or 取得失敗 なら vault 直下
+ * 保存先 (v0.5.1):
+ * - kanban 専用設定 `attachmentDir` を優先 (デフォルト `<tasksDir>/_attachments`)
+ * - boardStore.attachmentDir をミラーとして購読、設定変更時に即時反映
  * - ファイル名: `{taskId}-pasted-{YYYYMMDDHHMMSS}{ext}`
  *
  * 既存添付の検出:
@@ -31,18 +33,26 @@ const IMAGE_EXT_REGEX = /\.(png|jpe?g|gif|webp)$/i;
 const PDF_EXT_REGEX = /\.pdf$/i;
 const WIKILINK_RE = /!\[\[([^\]|]+\.(?:png|jpe?g|gif|webp|pdf))(?:\|[^\]]*)?\]\]/gi;
 
-interface VaultWithConfig {
-  getConfig?: (key: string) => unknown;
-}
-
-function getAttachmentDir(app: App): string {
-  const v = app.vault as unknown as VaultWithConfig;
-  const raw = typeof v.getConfig === "function" ? v.getConfig("attachmentFolderPath") : "";
-  if (typeof raw !== "string") return "";
-  // "/" or "" → vault root、"./" → 現在のフォルダ (本実装では vault root に倒す)
-  const trimmed = raw.trim();
-  if (trimmed === "" || trimmed === "/" || trimmed.startsWith("./")) return "";
-  return trimmed.replace(/^\/+|\/+$/g, "");
+/**
+ * vault 相対パスのフォルダ階層を上から順に作成する。
+ * Obsidian の createFolder は親ディレクトリ無しで失敗するため、`a/b/c` を作るときは
+ * `a`, `a/b`, `a/b/c` の順で adapter.exists → createFolder を回す。
+ */
+async function ensureFolderRecursive(app: App, dir: string): Promise<void> {
+  if (dir === "") return;
+  const segments = dir.split("/").filter((s) => s !== "");
+  let cur = "";
+  for (const seg of segments) {
+    cur = cur === "" ? seg : `${cur}/${seg}`;
+    if (!(await app.vault.adapter.exists(cur))) {
+      try {
+        await app.vault.createFolder(cur);
+      } catch (e) {
+        // 同時実行で重複作成された場合は無視
+        if (!(await app.vault.adapter.exists(cur))) throw e;
+      }
+    }
+  }
 }
 
 function nowStamp(): string {
@@ -80,6 +90,8 @@ export function extractImageWikilinks(body: string): string[] {
 
 interface Props {
   app: App;
+  /** v0.5.1: kanban 専用添付フォルダの解決に使う（既定 `<tasksDir>/_attachments`） */
+  tasksDir: string;
   taskId: string;
   bodyMarkdown: string;
   /** 新規画像保存後に呼ばれる。form の memo 末尾に `![[filename]]` を挿入する想定 */
@@ -88,7 +100,9 @@ interface Props {
   onRemove: (filename: string) => void;
 }
 
-export function ImageAttachments({ app, taskId, bodyMarkdown, onInsert, onRemove }: Props) {
+export function ImageAttachments({ app, tasksDir, taskId, bodyMarkdown, onInsert, onRemove }: Props) {
+  const attachmentDirSetting = useBoardStore((s) => s.attachmentDir);
+  const attachmentDir = resolveAttachmentDir(attachmentDirSetting, tasksDir);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const containerRef = React.useRef<HTMLFieldSetElement>(null);
   const [isDragOver, setIsDragOver] = React.useState(false);
@@ -99,7 +113,7 @@ export function ImageAttachments({ app, taskId, bodyMarkdown, onInsert, onRemove
 
   const resolveResourcePath = React.useCallback(
     (filename: string): string | null => {
-      const dir = getAttachmentDir(app);
+      const dir = attachmentDir;
       const full = dir === "" ? filename : `${dir}/${filename}`;
       const f = app.vault.getAbstractFileByPath(full);
       if (!f) return null;
@@ -109,7 +123,7 @@ export function ImageAttachments({ app, taskId, bodyMarkdown, onInsert, onRemove
         return null;
       }
     },
-    [app],
+    [app, attachmentDir],
   );
 
   const saveImage = React.useCallback(
@@ -124,10 +138,9 @@ export function ImageAttachments({ app, taskId, bodyMarkdown, onInsert, onRemove
       try {
         const ext = file.name.match(/\.[^.]+$/)?.[0]?.toLowerCase() ?? ".png";
         const baseName = `${sanitizeBasename(taskId)}-pasted-${nowStamp()}${ext}`;
-        const dir = getAttachmentDir(app);
-        if (dir !== "" && !(await app.vault.adapter.exists(dir))) {
-          await app.vault.createFolder(dir);
-        }
+        const dir = attachmentDir;
+        // 親ディレクトリ階層を上から順に作成 (Obsidian の createFolder は親無しで失敗するため)
+        await ensureFolderRecursive(app, dir);
         let fullPath = dir === "" ? baseName : `${dir}/${baseName}`;
         // 衝突回避 (同 ms に複数 paste される稀ケース)
         if (await app.vault.adapter.exists(fullPath)) {
@@ -145,7 +158,7 @@ export function ImageAttachments({ app, taskId, bodyMarkdown, onInsert, onRemove
         savingRef.current.delete(key);
       }
     },
-    [app, taskId, onInsert],
+    [app, taskId, onInsert, attachmentDir],
   );
 
   // Clipboard paste (Cmd+V) — DetailPane 内に focus があるときのみ拾う。
@@ -169,7 +182,7 @@ export function ImageAttachments({ app, taskId, bodyMarkdown, onInsert, onRemove
 
   const openInObsidian = React.useCallback(
     (filename: string): void => {
-      const dir = getAttachmentDir(app);
+      const dir = attachmentDir;
       const fullPath = dir === "" ? filename : `${dir}/${filename}`;
       // openLinkText は Obsidian 標準の link 解決を経由する。tab=true で新規タブ表示。
       try {
@@ -178,7 +191,7 @@ export function ImageAttachments({ app, taskId, bodyMarkdown, onInsert, onRemove
         console.error("[kanban] openLinkText failed:", e);
       }
     },
-    [app],
+    [app, attachmentDir],
   );
 
   const onDragOver = (e: React.DragEvent): void => {
@@ -205,7 +218,7 @@ export function ImageAttachments({ app, taskId, bodyMarkdown, onInsert, onRemove
 
   const onRemoveClick = async (filename: string): Promise<void> => {
     if (!window.confirm(`「${filename}」を削除しますか？\n（vault からも削除されます）`)) return;
-    const dir = getAttachmentDir(app);
+    const dir = attachmentDir;
     const fullPath = dir === "" ? filename : `${dir}/${filename}`;
     try {
       const f = app.vault.getAbstractFileByPath(fullPath);

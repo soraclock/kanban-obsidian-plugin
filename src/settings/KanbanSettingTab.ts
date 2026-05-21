@@ -1,7 +1,7 @@
 import { App, PluginSettingTab, Setting, Notice } from "obsidian";
 import type KanbanPlugin from "../main";
 import { DEFAULT_TASKS_DIR } from "../data/Constants";
-import { normalizeTasksDir } from "./PluginSettings";
+import { normalizeTasksDir, resolveAttachmentDir } from "./PluginSettings";
 import { useBoardStore } from "../store/boardStore";
 import { collectAllTags } from "../data/TaskFilter";
 import { autoColorForTag, readableTextColor } from "../util/tagColor";
@@ -45,6 +45,26 @@ export class KanbanSettingTab extends PluginSettingTab {
     note.appendText(
       "フォルダパスの変更は次回 Obsidian 起動時から有効になります。既存のタスクファイルは自動で移動しません。",
     );
+
+    // 添付ファイル保存先
+    const defaultAttachmentDir = resolveAttachmentDir("", this.plugin.settings.tasksDir);
+    new Setting(containerEl)
+      .setName("添付ファイル保存先")
+      .setDesc(
+        `カードに画像 / PDF を添付したときの保存フォルダ。空欄なら ${defaultAttachmentDir} に保存します（vault ルートを汚さない既定）。`,
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder(defaultAttachmentDir)
+          .setValue(this.plugin.settings.attachmentDir)
+          .onChange(async (value) => {
+            // 末尾 / 先頭の `/` と空白を除去して保存（resolveAttachmentDir 側の正規化と揃える）。
+            this.plugin.settings.attachmentDir = value
+              .trim()
+              .replace(/^\/+|\/+$/g, "");
+            await this.plugin.saveSettings();
+          }),
+      );
 
     // タグの並び順と色
     this.renderTagSection(containerEl);

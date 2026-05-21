@@ -7,12 +7,15 @@ import { DEFAULT_TASKS_DIR } from "../data/Constants";
  * tagOrder: タグの表示順。FilterBar 等で利用される。未登録タグは末尾。
  * tagColors: 個別タグの色（CSS color、例 "#ef6c00"）。空 = 自動色を使う。
  * autoColorEnabled: 個別指定のないタグに自動色を当てるか。
+ * attachmentDir: 画像 / PDF 添付の保存先。空文字 = `<tasksDir>/_attachments` を既定として使う。
+ *   v0.5.1: vault ルートに添付ファイルが散らばるのを防ぐ専用フォルダ。
  */
 export interface PluginSettings {
   tasksDir: string;
   tagOrder: string[];
   tagColors: Record<string, string>;
   autoColorEnabled: boolean;
+  attachmentDir: string;
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
@@ -20,7 +23,19 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   tagOrder: [],
   tagColors: {},
   autoColorEnabled: true,
+  attachmentDir: "",
 };
+
+/**
+ * attachmentDir 設定値を解決して、実際の保存先 vault 相対パスを返す。
+ * 空文字なら kanban 既定 `<tasksDir>/_attachments` にフォールバック。
+ */
+export function resolveAttachmentDir(attachmentDir: string, tasksDir: string): string {
+  const trimmed = attachmentDir.trim().replace(/^\/+|\/+$/g, "");
+  if (trimmed === "") return `${tasksDir}/_attachments`;
+  if (trimmed.includes("..")) return `${tasksDir}/_attachments`;
+  return trimmed;
+}
 
 /**
  * 入力値を正規化する。

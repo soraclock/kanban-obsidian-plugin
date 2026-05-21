@@ -101,6 +101,9 @@ interface BoardState {
     tagColors: Record<string, string>;
     autoColorEnabled: boolean;
   };
+  /** v0.5.1: 添付ファイル保存先のミラー（空文字 = kanban 既定 `<tasksDir>/_attachments`）。
+   *  ImageAttachments がこれを参照して保存先を決める。 */
+  attachmentDir: string;
   /** Phase 3: DetailPane で開いているタスクの filePath。null なら閉じている */
   openDetailFilePath: string | null;
   /** Phase 6: フィルタ / 検索状態 */
@@ -124,6 +127,8 @@ interface BoardState {
     tagColors: Record<string, string>;
     autoColorEnabled: boolean;
   }) => void;
+  /** v0.5.1: 添付保存先設定の同期 */
+  setAttachmentDir: (dir: string) => void;
   /**
    * Phase 3: 単一 task の partial update。VaultWatcher が外部編集を検知したとき、
    * または DetailPane 保存後にロード結果をマージするときに使う。
@@ -176,6 +181,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   errors: [],
   reloadTrigger: 0,
   tagConfig: { tagOrder: [], tagColors: {}, autoColorEnabled: true },
+  attachmentDir: "",
   openDetailFilePath: null,
   filter: DEFAULT_FILTER,
   viewMode: "detailed",
@@ -190,6 +196,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   setErrors: (errors) => set({ errors }),
   requestReload: () => set((s) => ({ reloadTrigger: s.reloadTrigger + 1 })),
   setTagConfig: (config) => set({ tagConfig: config }),
+  setAttachmentDir: (dir) => set({ attachmentDir: dir }),
 
   upsertTask: (task) =>
     set((s) => {
