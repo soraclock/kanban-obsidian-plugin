@@ -978,20 +978,10 @@ export function DetailPane({ ctx }: { ctx: PluginContext }) {
       </div>
 
       <footer className="kanban-detail-footer">
-        <button
-          type="button"
-          className="kanban-detail-delete"
-          onClick={() => {
-            void onDelete();
-          }}
-          disabled={saving}
-        >
-          削除
-        </button>
-        {/* v0.5.0: ステータス移動ボタン群。
-         *  - 定期タスクは「定期」列に常駐すべきなので移動ボタン非表示
-         *  - 完了は Card 上の「今回分を完了」ボタン経由のみ（履歴生成のため）
-         *  - 現在 status はボタンから除外 */}
+        {/* v0.6.2: footer を 2 段組に組み替え。
+         *  上段: ステータス移動ボタン群（定期タスク以外で表示）
+         *  下段: 削除 (左) + キャンセル / 保存 (右)
+         *  → 360px 幅でも各ボタンが横並びで収まる */}
         {task.status !== "定期" && (
           <div className="kanban-detail-move-buttons" role="group" aria-label="ステータス移動">
             {MOVABLE_STATUSES.map((s) =>
@@ -1011,18 +1001,30 @@ export function DetailPane({ ctx }: { ctx: PluginContext }) {
             )}
           </div>
         )}
-        <div className="kanban-detail-footer-right">
-          <button type="button" onClick={onCancel} disabled={saving}>
-            キャンセル
-          </button>
+        <div className="kanban-detail-footer-main">
           <button
             type="button"
-            className="kanban-detail-save"
-            onClick={onSave}
-            disabled={saving || !dirty}
+            className="kanban-detail-delete"
+            onClick={() => {
+              void onDelete();
+            }}
+            disabled={saving}
           >
-            {saving ? "保存中..." : "保存"}
+            削除
           </button>
+          <div className="kanban-detail-footer-right">
+            <button type="button" onClick={onCancel} disabled={saving}>
+              キャンセル
+            </button>
+            <button
+              type="button"
+              className="kanban-detail-save"
+              onClick={onSave}
+              disabled={saving || !dirty}
+            >
+              {saving ? "保存中..." : "保存"}
+            </button>
+          </div>
         </div>
       </footer>
     </aside>

@@ -650,20 +650,27 @@
   color: var(--interactive-accent);
 }
 
+/* v0.6.2: footer を 2 段組に組み替え (移動ボタン群 + 削除/キャンセル/保存) */
 .kanban-root .kanban-detail-footer {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   padding: 8px 12px;
   border-top: 1px solid var(--background-modifier-border);
   background-color: var(--background-secondary-alt);
   flex: 0 0 auto;
-  gap: 8px;
+  gap: 6px;
   /* スクロール中も保存ボタンが常に見える / 背後の周辺 UI と重ならない */
   position: sticky;
   bottom: 0;
   z-index: 12;
   box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.15);
+}
+.kanban-root .kanban-detail-footer-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
 }
 .kanban-root .kanban-detail-footer-right {
   display: flex;
@@ -690,13 +697,17 @@
 .kanban-root .kanban-detail-footer .kanban-detail-save:hover:not(:disabled) {
   background-color: var(--interactive-accent-hover);
 }
-/* v0.5.0: ステータス移動ボタン群 (DetailPane footer) */
+/* v0.5.0+ : ステータス移動ボタン群 (DetailPane footer 上段)。
+ *  4 ボタン分の幅を取って横並び。狭い場合のみ wrap で折り返す。 */
 .kanban-root .kanban-detail-move-buttons {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  flex: 1;
-  justify-content: center;
+  justify-content: space-between;
+}
+.kanban-root .kanban-detail-move-buttons .kanban-detail-move-btn {
+  flex: 1 1 0;
+  min-width: 0;
 }
 .kanban-root .kanban-detail-footer .kanban-detail-move-btn {
   color: var(--text-muted);
