@@ -52,10 +52,16 @@ export function FilterBar() {
   const [presetMenuOpen, setPresetMenuOpen] = React.useState(false);
 
   const tagConfig = useBoardStore((s) => s.tagConfig);
-  const allTags = React.useMemo(
-    () => sortByTagOrder(collectAllTags(tasks), tagConfig.tagOrder),
-    [tasks, tagConfig.tagOrder],
-  );
+  // v0.6.3: 完了 / 凍結 タスクにしかないタグは FilterBar から非表示にする。
+  // ただし、ユーザーが現在 filter.tags で選択中のタグは解除できるように残す。
+  const allTags = React.useMemo(() => {
+    const activeTasks = tasks.filter(
+      (t) => t.status !== "完了" && t.status !== "凍結",
+    );
+    const visible = new Set(collectAllTags(activeTasks));
+    for (const t of filter.tags) visible.add(t);
+    return sortByTagOrder(Array.from(visible), tagConfig.tagOrder);
+  }, [tasks, filter.tags, tagConfig.tagOrder]);
 
   // Phase 9: アクティブ 3 status の件数を 1 回の走査で取得（Board と表示が一致するよう
   // active な status だけカウント、完了/凍結はここでは数えない）
