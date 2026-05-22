@@ -165,6 +165,22 @@ describe("TaskCreator", () => {
     expect(result.newFilePath).toMatch(/K-\d{4}-untitled\.md$/);
   });
 
+  it("case 11a: _README.md が無い vault でも自動初期化されて K-0001 で作成成功 (新規ユーザー)", async () => {
+    // 全くの空 vault — README も無い、フォルダも無い
+    const { app, files } = makeFakeApp({});
+    const pathLock = new PathLock();
+    const journal = new WriteJournal(app.vault as never, JOURNAL_PATH, pathLock);
+    const creator = new TaskCreator(app as never, TASKS_DIR, pathLock, journal);
+
+    const result = await creator.createTask({ title: "初めてのタスク", status: "未着手" });
+
+    expect(result.newId).toBe("K-0001");
+    expect(files[result.newFilePath]).toBeDefined();
+    // _README.md が自動生成され、次のID が K-0002 になっている
+    expect(files[README_PATH]).toBeDefined();
+    expect(files[README_PATH]).toContain("K-0002");
+  });
+
   it("case 11: 100 回連続衝突でエラー", async () => {
     // tries > 100 でエラーになる実装なので、101 件衝突させる
     // K-0003〜K-0103 (101 ファイル) を事前作成（slug は "untitled"）

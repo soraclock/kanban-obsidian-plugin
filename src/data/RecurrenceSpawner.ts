@@ -9,6 +9,7 @@ import { sha256, ConflictError } from "./ContentHash";
 import type { SelfWriteTracker } from "./SelfWriteTracker";
 import type { WriteJournal } from "./WriteJournal";
 import type { OperationHistory } from "./OperationHistory";
+import { ensureTasksFolder } from "./EnsureTasksFolder";
 
 /**
  * 定期タスクの「今回分を完了」処理。
@@ -80,6 +81,8 @@ export class RecurrenceSpawner {
     if (!rec) return null;
 
     return this.withProcessLock(async () => {
+    // 新規 vault / iCloud で _README.md が無い場合に自動生成（race は ProcessLock で直列化）
+    await ensureTasksFolder(this.app, this.tasksDir);
     const readmePath = `${this.tasksDir}/_README.md`;
     return this.pathLock.with(readmePath, async () => {
       // 親 path も PathLock で直列化。ネスト順は readme → parent で固定（デッドロック回避）。

@@ -6,6 +6,7 @@ import { WriteJournal, type JournalEntry } from "./WriteJournal";
 import { sha256 } from "./ContentHash";
 import { SelfWriteTracker } from "./SelfWriteTracker";
 import { isSafeRelativePath } from "./TaskWriter";
+import { ensureTasksFolder } from "./EnsureTasksFolder";
 import type { Status, Priority } from "./TaskSchema";
 
 const NEXT_ID_RE = /次のID:\s*\*\*K-(\d{4})\*\*/;
@@ -66,6 +67,8 @@ export class TaskCreator {
       throw new Error("title is required");
     }
     return this.withProcessLock(async () => {
+    // 新規 vault / iCloud で _README.md が無い場合に自動生成（race は ProcessLock で直列化）
+    await ensureTasksFolder(this.app, this.tasksDir);
     const readmePath = `${this.tasksDir}/_README.md`;
     return this.pathLock.with(readmePath, async () => {
       const readmeFile = this.getTFile(readmePath);
