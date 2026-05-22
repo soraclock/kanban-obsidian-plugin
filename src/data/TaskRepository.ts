@@ -79,6 +79,11 @@ export class TaskRepository {
         return { filePath: file.path, message: `frontmatter parse failed: ${(e as Error).message}` };
       }
 
+      // YAML パースエラー: parseFile は throw せず parseError フィールドをセットする
+      if (parsed.parseError) {
+        return { filePath: file.path, message: `YAMLパースエラー: ${parsed.parseError}` };
+      }
+
       // prototype pollution 系の危険キー検出 (review security#Major 反映)
       for (const key of Object.keys(parsed.data)) {
         if (DANGEROUS_FRONTMATTER_KEYS.has(key)) {

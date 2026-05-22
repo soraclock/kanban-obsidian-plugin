@@ -440,8 +440,19 @@ export function DetailPane({ ctx }: { ctx: PluginContext }) {
       }
       // Phase 11: form は YYYY/MM/DD 表示、保存時に内部 YYYY-MM-DD に正規化
       const dueNormalized = form.due === "" ? null : parseYmdInput(form.due);
+      // completedAt 自動設定: 完了 → 日付未入力なら今日を補完、完了以外 → クリア
+      let completedAtForSave = form.completedAt;
+      if (form.status === "完了" && completedAtForSave === "") {
+        const d = new Date();
+        const y = d.getFullYear();
+        const mo = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        completedAtForSave = `${y}/${mo}/${day}`;
+      } else if (form.status !== "完了" && completedAtForSave !== "") {
+        completedAtForSave = "";
+      }
       const completedAtNormalized =
-        form.completedAt === "" ? null : parseYmdInput(form.completedAt);
+        completedAtForSave === "" ? null : parseYmdInput(completedAtForSave);
       // recurrence は GUI 入力で制約済み (バリデーション不要)
       const result = await ctx.taskWriter.updateTask(task.filePath, expectedHash, {
         frontmatter: {

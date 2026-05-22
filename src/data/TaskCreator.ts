@@ -57,6 +57,10 @@ export class TaskCreator {
       const slug = this.slugify(input.title);
       let candidateId: string;
       let candidatePath: string;
+      // ID プレフィックス重複を防ぐため、tasks ディレクトリ内の既存ファイル名を取得
+      const listed = await this.app.vault.adapter.list(this.tasksDir);
+      const existingFiles = new Set(listed.files.map((f) => f.split("/").pop()!));
+
       let tries = 0;
       while (true) {
         candidateId = "K-" + String(candidateNum).padStart(4, "0");
@@ -64,7 +68,13 @@ export class TaskCreator {
         if (!isSafeRelativePath(candidatePath) || !candidatePath.startsWith(this.tasksDir + "/")) {
           throw new Error(`invalid create path: ${candidatePath}`);
         }
-        if (!(await this.app.vault.adapter.exists(candidatePath))) break;
+        // exact path 衝突 + 同一 ID プレフィックス（K-NNNN-*.md / K-NNNN.md）の衝突を両方チェック
+        const idPrefix = `${candidateId}-`;
+        const idExact = `${candidateId}.md`;
+        const hasIdCollision = Array.from(existingFiles).some(
+          (name) => name.startsWith(idPrefix) || name === idExact,
+        );
+        if (!hasIdCollision) break;
         candidateNum += 1;
         tries += 1;
         if (tries > 100) throw new Error("[create] ID 採番が 100 回連続で衝突");

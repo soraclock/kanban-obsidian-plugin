@@ -37,6 +37,8 @@ const NEXT_ID_RE = /次のID:\s*\*\*K-(\d{4})\*\*/;
 const FILE_NAME_RE = /^K-(\d{4})-(.+)\.md$/;
 const ID_PREFIX_RE = /^K-(\d{4})/;
 
+// TODO: RecurrenceSpawner should check EnvironmentGate.isWriteAllowed() before writing.
+// Currently gate is not injected here; wire it from main.ts when readOnly mode is enforced.
 export class RecurrenceSpawner {
   constructor(
     private readonly app: App,
@@ -163,6 +165,11 @@ export class RecurrenceSpawner {
         // 6. WriteJournal + OperationHistory に記録 (review #5: 監査証跡 + Undo)
         const ts = new Date().toISOString();
         const historyHash = sha256(historyContent);
+        // 親ファイルの更新後 hash (Undo 時の expectedHash として必要)
+        const parentAfterHash = sha256(stringifyFile(
+          parentParsed.content.replace(/(-\s*\[)[xX](\])/g, "$1 $2"),
+          { ...(parentParsed.data as Record<string, unknown>), due: newDue, updated: completedAt },
+        ));
         if (this.journal) {
           await this.journal.append({
             ts,
@@ -180,10 +187,7 @@ export class RecurrenceSpawner {
             op: "completeRecurring",
             path: source.filePath,
             beforeHash: parentBeforeHash,
-            afterHash: sha256(stringifyFile(
-              parentParsed.content.replace(/(-\s*\[)[xX](\])/g, "$1 $2"),
-              { ...(parentParsed.data as Record<string, unknown>), due: newDue, updated: completedAt },
-            )),
+            afterHash: parentAfterHash,
             actor: "user",
             approved: true,
             beforeData: { due: baseStr },
@@ -195,7 +199,7 @@ export class RecurrenceSpawner {
           filePath: source.filePath,
           before: { status: source.status },
           after: { status: source.status },
-          afterHash: historyHash,
+          afterHash: parentAfterHash,
           ts,
         });
 

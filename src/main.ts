@@ -125,6 +125,8 @@ export default class KanbanPlugin extends Plugin {
       tasksDir,
       this.pathLock,
       this.selfWriteTracker,
+      this.journal,
+      this.history,
     );
 
     // Phase 7 (タスク追加): 各列の「+」ボタンから新規タスクを作成する
@@ -480,6 +482,12 @@ export default class KanbanPlugin extends Plugin {
         await this.taskWriter.updateStatus(op.filePath, op.afterHash, op.before.status, "undo");
       } else if (op.type === "order" && op.before.order != null) {
         await this.taskWriter.updateOrder(op.filePath, op.afterHash, op.before.order, "undo");
+      } else if (op.type === "recurrence") {
+        // 定期タスクの完了は履歴ファイル作成 + 親 due 更新の複合操作で、
+        // 単純な revert が困難なため現時点では Undo 未対応。
+        new Notice("Undo: 定期タスクの完了は取り消せません");
+        console.warn("[kanban] undo for recurrence type is not yet supported", op);
+        return;
       } else {
         new Notice("Undo: state insufficient");
         return;

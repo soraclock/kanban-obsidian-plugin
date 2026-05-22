@@ -58,7 +58,7 @@ export function ListView({ ctx }: { ctx: PluginContext }) {
               ) : (
                 <div className="kanban-list-cards">
                   {items.map((t) => (
-                    <TaskListCard key={t.id} task={t} ctx={ctx} />
+                    <TaskListCard key={t.filePath} task={t} ctx={ctx} />
                   ))}
                 </div>
               )}

@@ -82,6 +82,12 @@ export class SchemaAudit {
         continue;
       }
 
+      // YAML パースエラー: parseFile は throw せず parseError フィールドをセットする
+      if (parsed.parseError) {
+        errors.push({ level: "error", file: file.path, message: `YAMLパースエラー: ${parsed.parseError}` });
+        continue;
+      }
+
       // prototype pollution 系の危険キー（KNOWN_KEYS チェックより先に弾く）
       for (const key of Object.keys(parsed.data)) {
         if (DANGEROUS_FRONTMATTER_KEYS.has(key)) {

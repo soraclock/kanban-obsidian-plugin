@@ -12,6 +12,7 @@ import {
   type TaskFrontmatter,
 } from "./TaskSchema";
 import { isValidRecurrenceSpec } from "./Recurrence";
+import { isValidDate } from "../util/dateFormat";
 import type { SelfWriteTracker } from "./SelfWriteTracker";
 import type { ProcessLock } from "./ProcessLock";
 
@@ -586,7 +587,7 @@ export function sanitizeFrontmatterPatch(
     } else if (k === "priority") {
       if (typeof v !== "string" || !(PRIORITY_VALUES as readonly string[]).includes(v)) continue;
     } else if (k === "due" || k === "completedAt") {
-      if (v !== null && (typeof v !== "string" || !ISO_DATE_RE.test(v))) continue;
+      if (v !== null && (typeof v !== "string" || !ISO_DATE_RE.test(v) || !isValidDate(v))) continue;
     } else if (k === "model") {
       if (v !== null && !(typeof v === "string" && ["opus", "sonnet", "haiku"].includes(v))) continue;
     } else if (k === "tags" || k === "related") {

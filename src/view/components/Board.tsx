@@ -522,7 +522,13 @@ export function Board({ app, ctx }: { app: App; ctx: PluginContext }) {
           }
           let activeNewOrder: number | null = null;
           let activeResultHash: string | null = null;
-          const succeeded: string[] = [];
+          // snapshot: rollback 用に更新前の order と hash を保持
+          const snapshot = new Map<string, { order: number | undefined; hash: string }>();
+          for (const { task: t } of toUpdate) {
+            snapshot.set(t.id, { order: t.order, hash: t.contentHash });
+          }
+          const succeeded: Array<{ id: string; newHash: string }> = [];
+          let aborted = false;
           for (const { task: t, desiredOrder } of toUpdate) {
             try {
               const r = await ctx.taskWriter.updateOrder(
@@ -530,24 +536,55 @@ export function Board({ app, ctx }: { app: App; ctx: PluginContext }) {
                 t.contentHash,
                 desiredOrder,
               );
-              succeeded.push(t.id);
+              succeeded.push({ id: t.id, newHash: r.newHash });
               if (t.id === activeTaskNow.id) {
                 activeNewOrder = desiredOrder;
                 activeResultHash = r.newHash;
               }
             } catch (e) {
+              aborted = true;
               const safeMsg = e instanceof Error ? e.message.slice(0, 80) : "不明なエラー";
               console.error(
                 `[kanban] renumber write failed at ${t.id}: ${safeMsg}. ` +
-                `Succeeded: [${succeeded.join(", ")}], ` +
-                `Remaining: [${toUpdate.filter((u) => !succeeded.includes(u.task.id)).map((u) => u.task.id).join(", ")}]`,
+                `Succeeded: [${succeeded.map((s) => s.id).join(", ")}], ` +
+                `Remaining: [${toUpdate.filter((u) => !succeeded.some((s) => s.id === u.task.id)).map((u) => u.task.id).join(", ")}]`,
               );
-              new Notice(`並び替え中にエラーが発生しました (${succeeded.length}/${toUpdate.length} 件更新済み)`);
-              // abort: 残りの write を中止して reload に任せる
+              // best-effort rollback: 既に更新した分を元の order に戻す
+              const reverted: string[] = [];
+              const revertFailed: string[] = [];
+              for (const s of succeeded) {
+                const orig = snapshot.get(s.id);
+                const origTask = toUpdate.find((u) => u.task.id === s.id)?.task;
+                if (!orig || !origTask || orig.order === undefined) continue;
+                try {
+                  await ctx.taskWriter.updateOrder(
+                    origTask.filePath,
+                    s.newHash,
+                    orig.order,
+                  );
+                  reverted.push(s.id);
+                } catch (revertErr) {
+                  revertFailed.push(s.id);
+                  console.error(
+                    `[kanban] renumber rollback failed for ${s.id}:`,
+                    revertErr instanceof Error ? revertErr.message.slice(0, 80) : revertErr,
+                  );
+                }
+              }
+              console.error(
+                `[kanban] renumber rollback summary: reverted=[${reverted.join(", ")}], failed=[${revertFailed.join(", ")}]`,
+              );
+              if (revertFailed.length > 0) {
+                new Notice(
+                  `並び替え中にエラーが発生し、${revertFailed.length} 件の復元にも失敗しました。リロードで最新状態を確認してください。`,
+                );
+              } else {
+                new Notice(`並び替え中にエラーが発生しました。変更を元に戻しました。`);
+              }
               break;
             }
           }
-          if (activeNewOrder !== null && activeResultHash !== null) {
+          if (!aborted && activeNewOrder !== null && activeResultHash !== null) {
             ctx.history.push({
               type: "order",
               filePath: activeTaskNow.filePath,
