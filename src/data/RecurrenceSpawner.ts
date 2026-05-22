@@ -37,8 +37,6 @@ const NEXT_ID_RE = /次のID:\s*\*\*K-(\d{4})\*\*/;
 const FILE_NAME_RE = /^K-(\d{4})-(.+)\.md$/;
 const ID_PREFIX_RE = /^K-(\d{4})/;
 
-// TODO: RecurrenceSpawner should check EnvironmentGate.isWriteAllowed() before writing.
-// Currently gate is not injected here; wire it from main.ts when readOnly mode is enforced.
 export class RecurrenceSpawner {
   constructor(
     private readonly app: App,
@@ -47,6 +45,7 @@ export class RecurrenceSpawner {
     private readonly selfWriteTracker?: SelfWriteTracker,
     private readonly journal?: WriteJournal,
     private readonly history?: OperationHistory,
+    private readonly isWriteAllowed?: () => boolean,
   ) {}
 
   /**
@@ -57,6 +56,9 @@ export class RecurrenceSpawner {
     source: Task,
     completedAt: string,
   ): Promise<SpawnResult | null> {
+    if (this.isWriteAllowed && !this.isWriteAllowed()) {
+      throw new Error("write rejected: plugin is in readOnly mode (EnvironmentGate)");
+    }
     const recRaw = (source as unknown as { recurrence?: string | null }).recurrence;
     if (!recRaw) return null;
     const rec = parseRecurrence(recRaw);

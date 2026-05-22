@@ -37,12 +37,16 @@ export class TaskCreator {
     private readonly pathLock: PathLock,
     private readonly journal: WriteJournal,
     private readonly selfWriteTracker?: SelfWriteTracker,
+    private readonly isWriteAllowed?: () => boolean,
   ) {}
 
   async createTask(
     input: CreateTaskInput,
     actor: JournalEntry["actor"] = "user",
   ): Promise<CreateResult> {
+    if (this.isWriteAllowed && !this.isWriteAllowed()) {
+      throw new Error("write rejected: plugin is in readOnly mode (EnvironmentGate)");
+    }
     if (!input.title || input.title.trim() === "") {
       throw new Error("title is required");
     }

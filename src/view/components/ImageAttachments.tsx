@@ -118,6 +118,7 @@ interface Props {
 
 export function ImageAttachments({ app, tasksDir, taskId, bodyMarkdown, onInsert, onRemove }: Props) {
   const attachmentDirSetting = useBoardStore((s) => s.attachmentDir);
+  const readOnly = useBoardStore((s) => s.readOnly);
   const attachmentDir = resolveAttachmentDir(attachmentDirSetting, tasksDir);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const containerRef = React.useRef<HTMLFieldSetElement>(null);
@@ -144,6 +145,10 @@ export function ImageAttachments({ app, tasksDir, taskId, bodyMarkdown, onInsert
 
   const saveImage = React.useCallback(
     async (file: File): Promise<void> => {
+      if (readOnly) {
+        new Notice("読み取り専用モードです");
+        return;
+      }
       if (!ATTACHMENT_EXT_REGEX.test(file.name)) {
         new Notice(`対応外のファイル形式です: ${file.name}（画像 / PDF のみ）`);
         return;
@@ -174,7 +179,7 @@ export function ImageAttachments({ app, tasksDir, taskId, bodyMarkdown, onInsert
         savingRef.current.delete(key);
       }
     },
-    [app, taskId, onInsert, attachmentDir],
+    [app, taskId, onInsert, attachmentDir, readOnly],
   );
 
   // Clipboard paste (Cmd+V) — DetailPane 内に focus があるときのみ拾う。
@@ -233,6 +238,10 @@ export function ImageAttachments({ app, tasksDir, taskId, bodyMarkdown, onInsert
   };
 
   const onRemoveClick = async (filename: string): Promise<void> => {
+    if (readOnly) {
+      new Notice("読み取り専用モードです");
+      return;
+    }
     // 安全性チェック: ファイル名を再度サニタイズし、パストラバーサルを防ぐ
     const safeName = sanitizeAttachmentName(filename);
     if (!safeName) {

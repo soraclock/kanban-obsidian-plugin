@@ -104,6 +104,9 @@ interface BoardState {
   /** v0.5.1: 添付ファイル保存先のミラー（空文字 = kanban 既定 `<tasksDir>/_attachments`）。
    *  ImageAttachments がこれを参照して保存先を決める。 */
   attachmentDir: string;
+  /** EnvironmentGate が readOnly を検出した場合に true。vault 書き込み操作を UI 側でブロックする */
+  readOnly: boolean;
+  setReadOnly: (readOnly: boolean) => void;
   /** Phase 3: DetailPane で開いているタスクの filePath。null なら閉じている */
   openDetailFilePath: string | null;
   /** Phase 6: フィルタ / 検索状態 */
@@ -184,6 +187,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   reloadTrigger: 0,
   tagConfig: { tagOrder: [], tagColors: {}, autoColorEnabled: true },
   attachmentDir: "",
+  readOnly: false,
   openDetailFilePath: null,
   filter: DEFAULT_FILTER,
   viewMode: "detailed",
@@ -199,6 +203,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   requestReload: () => set((s) => ({ reloadTrigger: s.reloadTrigger + 1 })),
   setTagConfig: (config) => set({ tagConfig: config }),
   setAttachmentDir: (dir) => set({ attachmentDir: dir }),
+  setReadOnly: (readOnly) => set({ readOnly }),
 
   upsertTask: (task) =>
     set((s) => {

@@ -81,6 +81,7 @@ export default class KanbanPlugin extends Plugin {
       const gateResult = await this.gate.check();
       this.legacyLockToken = gateResult.legacyLockToken;
       this.lifecycle.applyGateResult(gateResult);
+      useBoardStore.getState().setReadOnly(gateResult.mode === "readOnly");
     } else {
       console.log("[kanban] mobile detected: skipping ProcessLock + EnvironmentGate");
     }
@@ -127,6 +128,7 @@ export default class KanbanPlugin extends Plugin {
       this.selfWriteTracker,
       this.journal,
       this.history,
+      this.gate ? () => this.gate!.isWriteAllowed() : undefined,
     );
 
     // Phase 7 (タスク追加): 各列の「+」ボタンから新規タスクを作成する
@@ -136,6 +138,7 @@ export default class KanbanPlugin extends Plugin {
       this.pathLock,
       this.journal,
       this.selfWriteTracker,
+      this.gate ? () => this.gate!.isWriteAllowed() : undefined,
     );
 
     // 削除されたタスクファイルの履歴を掃除 (review security#Minor 反映)

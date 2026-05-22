@@ -39,6 +39,25 @@ export function makeFakeApp(initialFiles: Record<string, string>) {
       write: async (path: string, content: string) => {
         files[path] = content;
       },
+      list: async (dir: string) => {
+        const prefix = dir.endsWith("/") ? dir : dir + "/";
+        const result: { files: string[]; folders: string[] } = { files: [], folders: [] };
+        const seenFolders = new Set<string>();
+        for (const p of Object.keys(files)) {
+          if (!p.startsWith(prefix)) continue;
+          const rest = p.slice(prefix.length);
+          if (rest.includes("/")) {
+            const folder = prefix + rest.split("/")[0]!;
+            if (!seenFolders.has(folder)) {
+              seenFolders.add(folder);
+              result.folders.push(folder);
+            }
+          } else {
+            result.files.push(p);
+          }
+        }
+        return result;
+      },
     },
     rename: async (file: Record<string, unknown>, newPath: string) => {
       const old = file.path as string;
