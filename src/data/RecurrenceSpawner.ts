@@ -3,6 +3,7 @@ import { parseFile, stringifyFile } from "./Frontmatter";
 import type { Task } from "./Task";
 import { parseRecurrence, nextDueDate } from "./Recurrence";
 import { PathLock } from "./PathLock";
+import type { ProcessLock } from "./ProcessLock";
 import { isSafeRelativePath } from "./TaskWriter";
 import { sha256, ConflictError } from "./ContentHash";
 import type { SelfWriteTracker } from "./SelfWriteTracker";
@@ -46,7 +47,21 @@ export class RecurrenceSpawner {
     private readonly journal?: WriteJournal,
     private readonly history?: OperationHistory,
     private readonly isWriteAllowed?: () => boolean,
+    private readonly processLock?: ProcessLock,
   ) {}
+
+  private async withProcessLock<T>(fn: () => Promise<T>): Promise<T> {
+    if (!this.processLock) return fn();
+    const acquired = await this.processLock.acquire();
+    if (!acquired) {
+      throw new Error("recurrence rejected: failed to acquire ProcessLock (timeout)");
+    }
+    try {
+      return await fn();
+    } finally {
+      await this.processLock.release();
+    }
+  }
 
   /**
    * 定期タスクの「今回分を完了」処理。
@@ -64,6 +79,7 @@ export class RecurrenceSpawner {
     const rec = parseRecurrence(recRaw);
     if (!rec) return null;
 
+    return this.withProcessLock(async () => {
     const readmePath = `${this.tasksDir}/_README.md`;
     return this.pathLock.with(readmePath, async () => {
       // 親 path も PathLock で直列化。ネスト順は readme → parent で固定（デッドロック回避）。
@@ -208,6 +224,7 @@ export class RecurrenceSpawner {
         return { newId: candidateId, newFilePath: candidatePath, newDue };
       });
     });
+    }); // withProcessLock
   }
 
   /**

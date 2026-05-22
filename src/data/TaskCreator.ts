@@ -1,6 +1,7 @@
 import type { App, TFile } from "obsidian";
 import { stringifyFile } from "./Frontmatter";
 import { PathLock } from "./PathLock";
+import type { ProcessLock } from "./ProcessLock";
 import { WriteJournal, type JournalEntry } from "./WriteJournal";
 import { sha256 } from "./ContentHash";
 import { SelfWriteTracker } from "./SelfWriteTracker";
@@ -38,7 +39,21 @@ export class TaskCreator {
     private readonly journal: WriteJournal,
     private readonly selfWriteTracker?: SelfWriteTracker,
     private readonly isWriteAllowed?: () => boolean,
+    private readonly processLock?: ProcessLock,
   ) {}
+
+  private async withProcessLock<T>(fn: () => Promise<T>): Promise<T> {
+    if (!this.processLock) return fn();
+    const acquired = await this.processLock.acquire();
+    if (!acquired) {
+      throw new Error("createTask rejected: failed to acquire ProcessLock (timeout)");
+    }
+    try {
+      return await fn();
+    } finally {
+      await this.processLock.release();
+    }
+  }
 
   async createTask(
     input: CreateTaskInput,
@@ -50,6 +65,7 @@ export class TaskCreator {
     if (!input.title || input.title.trim() === "") {
       throw new Error("title is required");
     }
+    return this.withProcessLock(async () => {
     const readmePath = `${this.tasksDir}/_README.md`;
     return this.pathLock.with(readmePath, async () => {
       const readmeFile = this.getTFile(readmePath);
@@ -136,6 +152,7 @@ export class TaskCreator {
 
       return { newId: candidateId, newFilePath: candidatePath };
     });
+    }); // withProcessLock
   }
 
   private slugify(title: string): string {

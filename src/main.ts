@@ -129,6 +129,7 @@ export default class KanbanPlugin extends Plugin {
       this.journal,
       this.history,
       this.gate ? () => this.gate!.isWriteAllowed() : undefined,
+      this.processLock,
     );
 
     // Phase 7 (タスク追加): 各列の「+」ボタンから新規タスクを作成する
@@ -139,6 +140,7 @@ export default class KanbanPlugin extends Plugin {
       this.journal,
       this.selfWriteTracker,
       this.gate ? () => this.gate!.isWriteAllowed() : undefined,
+      this.processLock,
     );
 
     // 削除されたタスクファイルの履歴を掃除 (review security#Minor 反映)
