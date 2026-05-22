@@ -15,7 +15,11 @@ export interface CreateTaskInput {
   title: string;
   status: Status;
   priority?: Priority; // 既定 "P2"
-  assignee?: string;   // 既定 "花木"
+  /**
+   * 担当者。未指定なら TaskCreator にコンストラクタ注入された getDefaultAssignee の戻り値を使う。
+   * v0.6.6 で旧ハードコード「花木」を撤去（公開プラグインなのでユーザー設定値を参照）。
+   */
+  assignee?: string;
 }
 
 export interface CreateResult {
@@ -41,6 +45,12 @@ export class TaskCreator {
     private readonly selfWriteTracker?: SelfWriteTracker,
     private readonly isWriteAllowed?: () => boolean,
     private readonly processLock?: ProcessLock,
+    /**
+     * v0.6.6: 既定 assignee を Plugin 設定から取得する getter。
+     * 呼び出し時点の最新値を読むためコンストラクタで関数を受ける（設定変更後も再注入不要）。
+     * 未注入 / 空文字なら frontmatter の assignee は空文字になる。
+     */
+    private readonly getDefaultAssignee?: () => string,
   ) {}
 
   private async withProcessLock<T>(fn: () => Promise<T>): Promise<T> {
@@ -175,7 +185,7 @@ export class TaskCreator {
       id: newId,
       title: input.title.trim(),
       status: input.status,
-      assignee: input.assignee ?? "花木",
+      assignee: input.assignee ?? this.getDefaultAssignee?.() ?? "",
       priority: input.priority ?? "P2",
       due: null,
       model: null,

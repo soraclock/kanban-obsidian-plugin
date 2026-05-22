@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { filterTasks, collectAllTags } from "../../src/data/TaskFilter";
+import { filterTasks, collectAllTags, collectAssignees } from "../../src/data/TaskFilter";
 import type { Task } from "../../src/data/Task";
 import type { Status, Priority } from "../../src/data/TaskSchema";
 import type { BoardFilter } from "../../src/store/boardStore";
@@ -23,7 +23,14 @@ function t(opts: Partial<Task> & { id: string }): Task {
   };
 }
 
-const EMPTY: BoardFilter = { priorities: [], statuses: [], tags: [], due: null, searchQuery: "" };
+const EMPTY: BoardFilter = {
+  priorities: [],
+  statuses: [],
+  tags: [],
+  assignees: [],
+  due: null,
+  searchQuery: "",
+};
 
 describe("filterTasks (Phase 6)", () => {
   it("returns all tasks when filter is empty", () => {
@@ -111,7 +118,7 @@ describe("filterTasks (Phase 6)", () => {
     ];
     const r = filterTasks(
       tasks,
-      { priorities: ["P0"], statuses: [], tags: ["x"], due: "today", searchQuery: "Sigma" },
+      { priorities: ["P0"], statuses: [], tags: ["x"], assignees: [], due: "today", searchQuery: "Sigma" },
       today,
     );
     expect(r.map((x) => x.id)).toEqual(["a"]);
@@ -128,5 +135,61 @@ describe("collectAllTags", () => {
   });
   it("returns empty for no tags", () => {
     expect(collectAllTags([t({ id: "a" })])).toEqual([]);
+  });
+});
+
+describe("filterTasks assignees (v0.6.6)", () => {
+  it("filters by assignees (OR)", () => {
+    const tasks = [
+      t({ id: "a", assignee: "花木" }),
+      t({ id: "b", assignee: "山田" }),
+      t({ id: "c", assignee: "佐藤" }),
+    ];
+    const r = filterTasks(tasks, { ...EMPTY, assignees: ["花木", "佐藤"] });
+    expect(r.map((x) => x.id)).toEqual(["a", "c"]);
+  });
+  it("empty assignees = pass all", () => {
+    const tasks = [
+      t({ id: "a", assignee: "花木" }),
+      t({ id: "b", assignee: "" }),
+    ];
+    expect(filterTasks(tasks, EMPTY).map((x) => x.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("collectAssignees (v0.6.6)", () => {
+  it("places defaultAssignee at the top when it exists in tasks", () => {
+    const tasks = [
+      t({ id: "a", assignee: "山田" }),
+      t({ id: "b", assignee: "山田" }),
+      t({ id: "c", assignee: "花木" }),
+    ];
+    // 件数だけ見れば山田が先だが、defaultAssignee=花木 を先頭固定
+    expect(collectAssignees(tasks, "花木")).toEqual(["花木", "山田"]);
+  });
+  it("falls back to count desc, then localeCompare when defaultAssignee is empty", () => {
+    const tasks = [
+      t({ id: "a", assignee: "Sato" }),
+      t({ id: "b", assignee: "Sato" }),
+      t({ id: "c", assignee: "Aoki" }),
+      t({ id: "d", assignee: "Tanaka" }),
+    ];
+    // 件数: Sato=2 (先頭) / Aoki=1, Tanaka=1 (同数なので localeCompare 昇順 = A→T)
+    expect(collectAssignees(tasks, "")).toEqual(["Sato", "Aoki", "Tanaka"]);
+  });
+  it("excludes empty string assignee from the chip list", () => {
+    const tasks = [
+      t({ id: "a", assignee: "" }),
+      t({ id: "b", assignee: "花木" }),
+    ];
+    expect(collectAssignees(tasks, "花木")).toEqual(["花木"]);
+  });
+  it("defaultAssignee not present in tasks → not added to the head", () => {
+    const tasks = [
+      t({ id: "a", assignee: "山田" }),
+      t({ id: "b", assignee: "佐藤" }),
+    ];
+    // 花木 がタスクに存在しなければ先頭に出さない（空チップを出さない）
+    expect(collectAssignees(tasks, "花木")).toEqual(["佐藤", "山田"]);
   });
 });

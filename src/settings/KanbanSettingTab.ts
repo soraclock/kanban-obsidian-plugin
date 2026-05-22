@@ -66,6 +66,22 @@ export class KanbanSettingTab extends PluginSettingTab {
           }),
       );
 
+    // v0.6.6: 既定の担当者（自分の名前）
+    new Setting(containerEl)
+      .setName("既定の担当者")
+      .setDesc(
+        "新規タスクの担当者（assignee）の既定値。空欄なら未割当（空文字）で作成されます。FilterBar の「担当」絞り込みではここで指定した名前が先頭に来ます。",
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("例: 花木")
+          .setValue(this.plugin.settings.defaultAssignee)
+          .onChange(async (value) => {
+            this.plugin.settings.defaultAssignee = value.trim();
+            await this.plugin.saveSettings();
+          }),
+      );
+
     // タグの並び順と色
     this.renderTagSection(containerEl);
 

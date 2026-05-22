@@ -13,14 +13,23 @@ function makeReadme(nextNum: number): string {
   return `# タスクボード\n\n次のID: **K-${String(nextNum).padStart(4, "0")}**\n`;
 }
 
-function buildEnv(extraFiles: Record<string, string> = {}) {
+function buildEnv(extraFiles: Record<string, string> = {}, defaultAssignee = "花木") {
   const { app, files } = makeFakeApp({
     [README_PATH]: makeReadme(3),
     ...extraFiles,
   });
   const pathLock = new PathLock();
   const journal = new WriteJournal(app.vault as never, JOURNAL_PATH, pathLock);
-  const creator = new TaskCreator(app as never, TASKS_DIR, pathLock, journal);
+  const creator = new TaskCreator(
+    app as never,
+    TASKS_DIR,
+    pathLock,
+    journal,
+    undefined,
+    undefined,
+    undefined,
+    () => defaultAssignee,
+  );
   return { app, files, creator };
 }
 
@@ -104,7 +113,7 @@ describe("TaskCreator", () => {
     expect(Array.isArray(parsed.data.tags)).toBe(true);
   });
 
-  it("case 6b: デフォルト値 — priority=P2 / assignee=花木 が入る", async () => {
+  it("case 6b: デフォルト値 — priority=P2 / assignee は設定値 (花木) が入る", async () => {
     const { files, creator } = buildEnv();
 
     const result = await creator.createTask({ title: "デフォルトテスト", status: "未着手" });
@@ -112,6 +121,24 @@ describe("TaskCreator", () => {
     const parsed = matter(files[result.newFilePath]!);
     expect(parsed.data.priority).toBe("P2");
     expect(parsed.data.assignee).toBe("花木");
+  });
+
+  it("case 6c (v0.6.6): defaultAssignee 設定が空文字なら assignee は空文字になる", async () => {
+    const { files, creator } = buildEnv({}, "");
+
+    const result = await creator.createTask({ title: "空欄テスト", status: "未着手" });
+
+    const parsed = matter(files[result.newFilePath]!);
+    expect(parsed.data.assignee).toBe("");
+  });
+
+  it("case 6d (v0.6.6): defaultAssignee 設定値が反映される", async () => {
+    const { files, creator } = buildEnv({}, "山田");
+
+    const result = await creator.createTask({ title: "別名テスト", status: "未着手" });
+
+    const parsed = matter(files[result.newFilePath]!);
+    expect(parsed.data.assignee).toBe("山田");
   });
 
   it("case 7: _README.md に次のID がない場合はエラー", async () => {

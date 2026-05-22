@@ -2,7 +2,7 @@ import * as React from "react";
 import { Platform } from "obsidian";
 import { useBoardStore, type DueFilter, type LayoutMode } from "../../store/boardStore";
 import { PRIORITY_VALUES, STATUS_VALUES, type Priority, type Status } from "../../data/TaskSchema";
-import { collectAllTags } from "../../data/TaskFilter";
+import { collectAllTags, collectAssignees } from "../../data/TaskFilter";
 import { resolveTagColor, readableTextColor, sortByTagOrder } from "../../util/tagColor";
 
 // Phase 9: ステータス絞り込みチップ + レイアウト切替を追加（board/list/focus）。
@@ -52,6 +52,7 @@ export function FilterBar() {
   const [presetMenuOpen, setPresetMenuOpen] = React.useState(false);
 
   const tagConfig = useBoardStore((s) => s.tagConfig);
+  const defaultAssignee = useBoardStore((s) => s.defaultAssignee);
   // v0.6.3: 完了 / 凍結 タスクにしかないタグは FilterBar から非表示にする。
   // ただし、ユーザーが現在 filter.tags で選択中のタグは解除できるように残す。
   const allTags = React.useMemo(() => {
@@ -62,6 +63,24 @@ export function FilterBar() {
     for (const t of filter.tags) visible.add(t);
     return sortByTagOrder(Array.from(visible), tagConfig.tagOrder);
   }, [tasks, filter.tags, tagConfig.tagOrder]);
+
+  // v0.6.6: 担当チップの並び順。タグと同じく完了/凍結タスクは除外、
+  // 選択中の assignee は解除できるように残す。defaultAssignee 設定があれば先頭固定。
+  const allAssignees = React.useMemo(() => {
+    const activeTasks = tasks.filter(
+      (t) => t.status !== "完了" && t.status !== "凍結",
+    );
+    const ordered = collectAssignees(activeTasks, defaultAssignee);
+    const set = new Set(ordered);
+    // 選択中だが集合に出てない（完了/凍結のみに残った）assignee は末尾に追加して解除可能に
+    for (const a of filter.assignees) {
+      if (!set.has(a) && a !== "") {
+        ordered.push(a);
+        set.add(a);
+      }
+    }
+    return ordered;
+  }, [tasks, filter.assignees, defaultAssignee]);
 
   // Phase 9: アクティブ 3 status の件数を 1 回の走査で取得（Board と表示が一致するよう
   // active な status だけカウント、完了/凍結はここでは数えない）
@@ -94,6 +113,12 @@ export function FilterBar() {
       : [...filter.tags, t];
     setFilter({ tags: next });
   };
+  const toggleAssignee = (a: string): void => {
+    const next = filter.assignees.includes(a)
+      ? filter.assignees.filter((x) => x !== a)
+      : [...filter.assignees, a];
+    setFilter({ assignees: next });
+  };
   const toggleDue = (d: Exclude<DueFilter, null>): void => {
     setFilter({ due: filter.due === d ? null : d });
   };
@@ -102,6 +127,7 @@ export function FilterBar() {
     filter.priorities.length > 0 ||
     filter.statuses.length > 0 ||
     filter.tags.length > 0 ||
+    filter.assignees.length > 0 ||
     filter.due !== null ||
     filter.searchQuery.trim() !== "";
 
@@ -114,6 +140,7 @@ export function FilterBar() {
     filter.priorities.length +
     filter.statuses.length +
     filter.tags.length +
+    filter.assignees.length +
     (filter.due !== null ? 1 : 0) +
     (filter.searchQuery.trim() !== "" ? 1 : 0);
 
@@ -228,6 +255,29 @@ export function FilterBar() {
           </button>
         ))}
       </div>
+
+      {allAssignees.length > 0 && (
+        <div className="kanban-filterbar-group">
+          <span className="kanban-filterbar-label">担当</span>
+          {allAssignees.map((a) => {
+            const active = filter.assignees.includes(a);
+            return (
+              <button
+                key={a}
+                type="button"
+                className={`kanban-filter-chip kanban-filter-chip-assignee ${
+                  active ? "is-active" : ""
+                }`}
+                onClick={() => toggleAssignee(a)}
+                aria-pressed={active}
+                title={`担当: ${a} のタスクだけに絞り込む（再クリックで解除）`}
+              >
+                {a}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className="kanban-filterbar-group">
         <span className="kanban-filterbar-label">期限</span>

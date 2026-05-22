@@ -57,6 +57,7 @@ export default class KanbanPlugin extends Plugin {
       autoColorEnabled: this.settings.autoColorEnabled,
     });
     useBoardStore.getState().setAttachmentDir(this.settings.attachmentDir);
+    useBoardStore.getState().setDefaultAssignee(this.settings.defaultAssignee);
 
     this.lifecycle = new PluginLifecycle(this);
     await this.lifecycle.onLoad();
@@ -141,6 +142,8 @@ export default class KanbanPlugin extends Plugin {
       this.selfWriteTracker,
       this.gate ? () => this.gate!.isWriteAllowed() : undefined,
       this.processLock,
+      // v0.6.6: 設定値を都度参照。設定タブで変更されても次回作成から反映される
+      () => this.settings.defaultAssignee,
     );
 
     // 削除されたタスクファイルの履歴を掃除 (review security#Minor 反映)
@@ -384,6 +387,8 @@ export default class KanbanPlugin extends Plugin {
           : {},
       autoColorEnabled: data.autoColorEnabled !== false, // 未設定 / undefined は true
       attachmentDir: typeof data.attachmentDir === "string" ? data.attachmentDir : "",
+      defaultAssignee:
+        typeof data.defaultAssignee === "string" ? data.defaultAssignee : "",
     };
   }
 
@@ -399,6 +404,7 @@ export default class KanbanPlugin extends Plugin {
       autoColorEnabled: this.settings.autoColorEnabled,
     });
     useBoardStore.getState().setAttachmentDir(this.settings.attachmentDir);
+    useBoardStore.getState().setDefaultAssignee(this.settings.defaultAssignee);
   }
 
   async saveSettings(): Promise<void> {
@@ -410,6 +416,7 @@ export default class KanbanPlugin extends Plugin {
       tagColors: this.settings.tagColors,
       autoColorEnabled: this.settings.autoColorEnabled,
       attachmentDir: this.settings.attachmentDir,
+      defaultAssignee: this.settings.defaultAssignee,
     });
     // タグ設定・添付保存先を boardStore にミラーして view を即時更新
     useBoardStore.getState().setTagConfig({
@@ -418,6 +425,7 @@ export default class KanbanPlugin extends Plugin {
       autoColorEnabled: this.settings.autoColorEnabled,
     });
     useBoardStore.getState().setAttachmentDir(this.settings.attachmentDir);
+    useBoardStore.getState().setDefaultAssignee(this.settings.defaultAssignee);
   }
 
   async onunload() {

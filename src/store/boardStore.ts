@@ -41,6 +41,11 @@ export interface BoardFilter {
   statuses: Status[];
   /** 選択中の tags (複数選択 AND、空配列 = 全部) */
   tags: string[];
+  /**
+   * v0.6.6: 選択中の担当者 (複数選択 OR、空配列 = 全部)。
+   * priorities と同じ意味論で、選んだ担当者のいずれかに一致するタスクを表示。
+   */
+  assignees: string[];
   /** due フィルタ */
   due: DueFilter;
   /** 検索クエリ (タイトル部分一致、大文字小文字無視) */
@@ -62,17 +67,26 @@ function loadSavedFilters(): SavedFilter[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (x): x is SavedFilter =>
-        x &&
-        typeof x.id === "string" &&
-        typeof x.name === "string" &&
-        x.filter &&
-        Array.isArray(x.filter.priorities) &&
-        Array.isArray(x.filter.statuses) &&
-        Array.isArray(x.filter.tags) &&
-        typeof x.filter.searchQuery === "string",
-    );
+    // v0.6.6: assignees は後方互換のため後付け、無ければ空配列補完
+    return parsed
+      .filter(
+        (x): x is SavedFilter =>
+          x &&
+          typeof x.id === "string" &&
+          typeof x.name === "string" &&
+          x.filter &&
+          Array.isArray(x.filter.priorities) &&
+          Array.isArray(x.filter.statuses) &&
+          Array.isArray(x.filter.tags) &&
+          typeof x.filter.searchQuery === "string",
+      )
+      .map((x) => ({
+        ...x,
+        filter: {
+          ...x.filter,
+          assignees: Array.isArray(x.filter.assignees) ? x.filter.assignees : [],
+        },
+      }));
   } catch {
     return [];
   }
@@ -104,6 +118,9 @@ interface BoardState {
   /** v0.5.1: 添付ファイル保存先のミラー（空文字 = kanban 既定 `<tasksDir>/_attachments`）。
    *  ImageAttachments がこれを参照して保存先を決める。 */
   attachmentDir: string;
+  /** v0.6.6: 既定の担当者ミラー。TaskCreator が新規タスクの assignee に、
+   *  FilterBar が「担当」チップの並び順先頭固定に使う。空文字 = 未設定。 */
+  defaultAssignee: string;
   /** EnvironmentGate が readOnly を検出した場合に true。vault 書き込み操作を UI 側でブロックする */
   readOnly: boolean;
   setReadOnly: (readOnly: boolean) => void;
@@ -132,6 +149,8 @@ interface BoardState {
   }) => void;
   /** v0.5.1: 添付保存先設定の同期 */
   setAttachmentDir: (dir: string) => void;
+  /** v0.6.6: 既定の担当者設定の同期 */
+  setDefaultAssignee: (assignee: string) => void;
   /**
    * Phase 3: 単一 task の partial update。VaultWatcher が外部編集を検知したとき、
    * または DetailPane 保存後にロード結果をマージするときに使う。
@@ -176,6 +195,7 @@ const DEFAULT_FILTER: BoardFilter = {
   priorities: [],
   statuses: [],
   tags: [],
+  assignees: [],
   due: null,
   searchQuery: "",
 };
@@ -187,6 +207,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   reloadTrigger: 0,
   tagConfig: { tagOrder: [], tagColors: {}, autoColorEnabled: true },
   attachmentDir: "",
+  defaultAssignee: "",
   readOnly: false,
   openDetailFilePath: null,
   filter: DEFAULT_FILTER,
@@ -203,6 +224,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   requestReload: () => set((s) => ({ reloadTrigger: s.reloadTrigger + 1 })),
   setTagConfig: (config) => set({ tagConfig: config }),
   setAttachmentDir: (dir) => set({ attachmentDir: dir }),
+  setDefaultAssignee: (assignee) => set({ defaultAssignee: assignee }),
   setReadOnly: (readOnly) => set({ readOnly }),
 
   upsertTask: (task) =>
@@ -250,6 +272,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
         priorities: [...s.filter.priorities],
         statuses: [...s.filter.statuses],
         tags: [...s.filter.tags],
+        assignees: [...s.filter.assignees],
         due: s.filter.due,
         searchQuery: s.filter.searchQuery,
       };

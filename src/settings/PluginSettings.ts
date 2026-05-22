@@ -9,6 +9,9 @@ import { DEFAULT_TASKS_DIR } from "../data/Constants";
  * autoColorEnabled: 個別指定のないタグに自動色を当てるか。
  * attachmentDir: 画像 / PDF 添付の保存先。空文字 = `<tasksDir>/_attachments` を既定として使う。
  *   v0.5.1: vault ルートに添付ファイルが散らばるのを防ぐ専用フォルダ。
+ * defaultAssignee: 新規タスク作成時の既定の担当者、および FilterBar の「担当」チップ並び順で
+ *   先頭固定する自分の名前。空文字なら未設定扱い（TaskCreator は空文字を入れる / FilterBar は件数順のみ）。
+ *   v0.6.6: TaskCreator のハードコード「花木」を廃止して設定値に集約。
  */
 export interface PluginSettings {
   tasksDir: string;
@@ -16,6 +19,7 @@ export interface PluginSettings {
   tagColors: Record<string, string>;
   autoColorEnabled: boolean;
   attachmentDir: string;
+  defaultAssignee: string;
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
@@ -24,6 +28,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   tagColors: {},
   autoColorEnabled: true,
   attachmentDir: "",
+  defaultAssignee: "",
 };
 
 /**
