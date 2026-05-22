@@ -73,12 +73,36 @@ export class TaskCreator {
       const content = this.buildContent(candidateId, input);
       await this.app.vault.create(candidatePath, content);
 
-      // README の次のID を +1 で更新
-      const updated = readmeText.replace(
-        NEXT_ID_RE,
-        `次のID: **K-${String(candidateNum + 1).padStart(4, "0")}**`,
-      );
-      await this.app.vault.modify(readmeFile, updated);
+      // README の次のID を +1 で更新。失敗時はタスクファイルを補償削除 (review #10)
+      try {
+        const updated = readmeText.replace(
+          NEXT_ID_RE,
+          `次のID: **K-${String(candidateNum + 1).padStart(4, "0")}**`,
+        );
+        await this.app.vault.modify(readmeFile, updated);
+      } catch (readmeErr) {
+        // 補償削除: ID カウンタが進まなかったので、作成済みタスクファイルを削除して ID 重複を防ぐ
+        try {
+          const created = this.app.vault.getAbstractFileByPath(candidatePath);
+          if (created && "stat" in created) {
+            await this.app.vault.delete(created as TFile);
+          }
+        } catch (cleanupErr) {
+          console.error("[kanban] task rollback failed:", candidatePath, cleanupErr);
+        }
+        await this.journal.append({
+          ts: new Date().toISOString(),
+          op: "createTask",
+          path: candidatePath,
+          beforeHash: "",
+          afterHash: "",
+          actor,
+          approved: false,
+          beforeData: undefined,
+          afterData: { id: candidateId, title: input.title, status: input.status, rollback: "readme_update_failed" },
+        });
+        throw readmeErr;
+      }
 
       const afterHash = sha256(content);
       await this.journal.append({

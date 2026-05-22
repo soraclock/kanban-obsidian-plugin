@@ -13,6 +13,8 @@ import { parseYaml, stringifyYaml } from "obsidian";
 export interface FrontmatterFile<T = Record<string, unknown>> {
   data: T;
   content: string;
+  /** YAML パース失敗時にセットされる。data は空オブジェクト、content は body 部分 (review #11) */
+  parseError?: string;
 }
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
@@ -37,8 +39,12 @@ export function parseFile<T = Record<string, unknown>>(input: string): Frontmatt
     const raw = parseYaml(m[1]) ?? {};
     const data = normalizeDateValues(raw) as T;
     return { data, content: m[2] ?? "" };
-  } catch {
-    return { data: {} as T, content: m[2] ?? "" };
+  } catch (e) {
+    return {
+      data: {} as T,
+      content: m[2] ?? "",
+      parseError: `yaml_parse_error: ${e instanceof Error ? e.message : String(e)}`,
+    };
   }
 }
 

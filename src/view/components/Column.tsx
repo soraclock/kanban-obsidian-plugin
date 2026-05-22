@@ -144,7 +144,7 @@ export function Column({
         </button>
       </div>
       <SortableContext
-        items={sorted.length === 0 ? [`empty-${status}`] : sorted.map((t) => t.id)}
+        items={sorted.length === 0 ? [`empty-${status}`] : sorted.map((t) => t.filePath)}
         strategy={verticalListSortingStrategy}
       >
         <div className="kanban-column-body">
@@ -205,7 +205,7 @@ export function Column({
           {sorted.length === 0 ? (
             <EmptyDropTarget status={status} />
           ) : (
-            sorted.map((t) => <Card key={t.id} task={t} ctx={ctx} />)
+            sorted.map((t) => <Card key={t.filePath} task={t} ctx={ctx} />)
           )}
         </div>
       </SortableContext>

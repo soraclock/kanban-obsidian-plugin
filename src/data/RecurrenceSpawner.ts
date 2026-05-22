@@ -6,6 +6,8 @@ import { PathLock } from "./PathLock";
 import { isSafeRelativePath } from "./TaskWriter";
 import { sha256, ConflictError } from "./ContentHash";
 import type { SelfWriteTracker } from "./SelfWriteTracker";
+import type { WriteJournal } from "./WriteJournal";
+import type { OperationHistory } from "./OperationHistory";
 
 /**
  * 定期タスクの「今回分を完了」処理。
@@ -41,6 +43,8 @@ export class RecurrenceSpawner {
     private readonly tasksDir: string,
     private readonly pathLock: PathLock,
     private readonly selfWriteTracker?: SelfWriteTracker,
+    private readonly journal?: WriteJournal,
+    private readonly history?: OperationHistory,
   ) {}
 
   /**
@@ -155,6 +159,45 @@ export class RecurrenceSpawner {
           }
           throw e;
         }
+
+        // 6. WriteJournal + OperationHistory に記録 (review #5: 監査証跡 + Undo)
+        const ts = new Date().toISOString();
+        const historyHash = sha256(historyContent);
+        if (this.journal) {
+          await this.journal.append({
+            ts,
+            op: "completeRecurring",
+            path: candidatePath,
+            beforeHash: "",
+            afterHash: historyHash,
+            actor: "user",
+            approved: true,
+            beforeData: undefined,
+            afterData: { id: candidateId, recurringHistoryOf: source.id, completedAt },
+          });
+          await this.journal.append({
+            ts,
+            op: "completeRecurring",
+            path: source.filePath,
+            beforeHash: parentBeforeHash,
+            afterHash: sha256(stringifyFile(
+              parentParsed.content.replace(/(-\s*\[)[xX](\])/g, "$1 $2"),
+              { ...(parentParsed.data as Record<string, unknown>), due: newDue, updated: completedAt },
+            )),
+            actor: "user",
+            approved: true,
+            beforeData: { due: baseStr },
+            afterData: { due: newDue },
+          });
+        }
+        this.history?.push({
+          type: "recurrence",
+          filePath: source.filePath,
+          before: { status: source.status },
+          after: { status: source.status },
+          afterHash: historyHash,
+          ts,
+        });
 
         return { newId: candidateId, newFilePath: candidatePath, newDue };
       });

@@ -1,7 +1,7 @@
 import type { Status } from "./TaskSchema";
 
 export interface UndoableOp {
-  type: "status" | "order" | "compound";
+  type: "status" | "order" | "compound" | "recurrence";
   filePath: string;
   /** 操作前の値 (revert で使う) */
   before: { status?: Status; order?: number };

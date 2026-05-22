@@ -52,10 +52,11 @@ export function TaskListCard({ task, ctx }: { task: Task; ctx: PluginContext }) 
         new Notice("この定期タスクには繰り返し設定がありません。詳細画面で設定してください。");
         return;
       }
-      const result = await ctx.taskWriter.updateStatus(
+      // updateTask で status=完了 + completedAt=today を同時更新。
+      const result = await ctx.taskWriter.updateTask(
         task.filePath,
         task.contentHash,
-        "完了",
+        { frontmatter: { status: "完了", completedAt: today } },
       );
       ctx.history.push({
         type: "status",

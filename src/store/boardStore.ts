@@ -165,6 +165,8 @@ interface BoardState {
   applySavedFilter: (id: string) => void;
   /** Phase 10 (P4): id 指定で保存済フィルタを削除 */
   deleteSavedFilter: (id: string) => void;
+  /** セッション状態をリセット (view close 時)。永続設定 (tagConfig / attachmentDir / savedFilters) は維持 */
+  resetSessionState: () => void;
 }
 
 const DEFAULT_FILTER: BoardFilter = {
@@ -273,5 +275,19 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       const next = s.savedFilters.filter((f) => f.id !== id);
       persistSavedFilters(next);
       return { savedFilters: next };
+    }),
+
+  resetSessionState: () =>
+    set({
+      tasks: [],
+      loading: false,
+      errors: [],
+      openDetailFilePath: null,
+      filter: DEFAULT_FILTER,
+      viewMode: "detailed",
+      currentView: "board",
+      mobileStatusTab: "未着手",
+      layoutMode: "board",
+      focusedStatus: "進行中",
     }),
 }));

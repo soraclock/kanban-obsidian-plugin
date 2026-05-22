@@ -13,6 +13,7 @@ import {
 } from "./TaskSchema";
 import { isValidRecurrenceSpec } from "./Recurrence";
 import type { SelfWriteTracker } from "./SelfWriteTracker";
+import type { ProcessLock } from "./ProcessLock";
 
 /**
  * Phase 3 DetailPane で編集可能な frontmatter フィールドの allowlist。
@@ -59,29 +60,19 @@ export interface WriteResult {
  * Phase 2 の write API。Phase 3 で DetailPane 編集を載せる際にも使う。
  *
  * 設計:
- * - PathLock.with(path) で同一ファイルへの並行 write を直列化
+ * - EnvironmentGate readOnly チェック: 全 public write メソッドの入口で assertWritable()
+ *   を呼び、readOnly モードでは throw して fail closed する
+ * - ProcessLock: プロセス間排他。全 write を withProcessLock() で囲み、
+ *   acquire → write → release (finally) で保証する。モバイルでは skip (ProcessLock 未設定)
+ * - PathLock.with(path) で同一ファイルへの Plugin 内並行 write を直列化
  * - 直前 read で hash 取得、expectedHash と一致確認（楽観的並行制御）
  * - 一致しない場合は ConflictError throw
- * - frontmatter は `app.fileManager.processFrontMatter` を使う
- *   （gray-matter 全体書き戻しではなく YAML キーだけを atomic に更新）
+ * - 全メソッドで parseFile → frontmatter 変更 → stringifyFile → 単一 vault.modify の
+ *   統一パターンを使用。processFrontMatter は使わない (TOCTOU window 排除)
  * - 成功後に WriteJournal に append (before/after hash + 値の snapshot)
- *
- * 並行制御の保護範囲 (review code-reviewer#Major 反映):
- * - Plugin 内の並行 write: PathLock により完全に直列化される
- * - Obsidian 標準エディタ・別 plugin・Obsidian Sync 等の外部書き込み:
- *   processFrontMatter は内部で read-modify-write を行うため、Plugin 側の hash 検証
- *   (最初の read のみ) と processFrontMatter 内部 read の間に書き込みが入ると検知できない。
- * - Phase 3 で vault.on('modify') を導入し外部編集を検知 → view 即時 reload する予定。
- *   それまでは「Plugin 経由の操作のみ厳格な楽観的並行制御」が成立。
  *
  * Phase 5c で AI write を追加する際は、TaskWriter を直接呼ばず、
  * ToolRouter が plan → diff preview → user approve → apply の中で呼ぶ。
- *
- * Race-safety asymmetry:
- * - updateTask: gray-matter で frontmatter + body を単一 vault.modify (race window 最小)
- * - updateStatus / updateOrder / updateStatusAndOrder: processFrontMatter (内部 read-modify-write)
- *   外部編集が processFrontMatter 内部 read 中に割り込むと検知不能。
- *   Phase 5c で AI write を入れる際、updateTask 一本に統一する方針 (architect レビュー#中-4)。
  */
 export class TaskWriter {
   constructor(
@@ -89,7 +80,36 @@ export class TaskWriter {
     private readonly pathLock: PathLock,
     private readonly journal: WriteJournal,
     private readonly selfWriteTracker?: SelfWriteTracker,
+    private readonly isWriteAllowed?: () => boolean,
+    private readonly processLock?: ProcessLock,
   ) {}
+
+  /**
+   * readOnly モードでは書き込みを拒否する (fail closed)。
+   * EnvironmentGate が readOnly を返している場合、warn ではなく throw で止める。
+   */
+  private assertWritable(): void {
+    if (this.isWriteAllowed && !this.isWriteAllowed()) {
+      throw new Error("write rejected: plugin is in readOnly mode (EnvironmentGate)");
+    }
+  }
+
+  /**
+   * ProcessLock acquire → fn 実行 → release を finally で保証するヘルパー。
+   * ProcessLock が未設定（モバイル等）の場合は fn をそのまま実行する。
+   */
+  private async withProcessLock<T>(fn: () => Promise<T>): Promise<T> {
+    if (!this.processLock) return fn();
+    const acquired = await this.processLock.acquire();
+    if (!acquired) {
+      throw new Error("write rejected: failed to acquire ProcessLock (timeout)");
+    }
+    try {
+      return await fn();
+    } finally {
+      await this.processLock.release();
+    }
+  }
 
   async updateStatus(
     filePath: string,
@@ -98,45 +118,50 @@ export class TaskWriter {
     actor: JournalEntry["actor"] = "user",
   ): Promise<WriteResult> {
     assertValidStatus(newStatus);
-    return this.pathLock.with(filePath, async () => {
-      const file = this.getTFile(filePath);
-      const before = await this.app.vault.read(file);
-      const beforeHash = sha256(before);
-      if (beforeHash !== expectedHash) {
-        throw new ConflictError(
-          `content hash mismatch for ${filePath}`,
-          filePath,
-          expectedHash,
+    this.assertWritable();
+    return this.withProcessLock(() =>
+      this.pathLock.with(filePath, async () => {
+        const file = this.getTFile(filePath);
+        const before = await this.app.vault.read(file);
+        const beforeHash = sha256(before);
+        if (beforeHash !== expectedHash) {
+          throw new ConflictError(
+            `content hash mismatch for ${filePath}`,
+            filePath,
+            expectedHash,
+            beforeHash,
+          );
+        }
+
+        const parsed = parseFile(before);
+        const beforeStatus = typeof parsed.data.status === "string" ? parsed.data.status : undefined;
+        const newData: Record<string, unknown> = { ...parsed.data };
+        newData.status = newStatus;
+        newData.updated = todayYmd();
+        normalizeFrontmatterDataRecord(newData);
+
+        const newContent = stringifyFile(parsed.content, newData);
+        await this.app.vault.modify(file, newContent);
+
+        const after = await this.app.vault.read(file);
+        const afterHash = sha256(after);
+
+        await this.journal.append({
+          ts: new Date().toISOString(),
+          op: "updateStatus",
+          path: filePath,
           beforeHash,
-        );
-      }
+          afterHash,
+          actor,
+          approved: true,
+          beforeData: { status: beforeStatus },
+          afterData: { status: newStatus },
+        });
 
-      let beforeStatus: string | undefined;
-      await this.app.fileManager.processFrontMatter(file, (fm) => {
-        beforeStatus = typeof fm.status === "string" ? fm.status : undefined;
-        fm.status = newStatus;
-        fm.updated = todayYmd();
-        normalizeFrontmatterDates(fm);
-      });
-
-      const after = await this.app.vault.read(file);
-      const afterHash = sha256(after);
-
-      await this.journal.append({
-        ts: new Date().toISOString(),
-        op: "updateStatus",
-        path: filePath,
-        beforeHash,
-        afterHash,
-        actor,
-        approved: true,
-        beforeData: { status: beforeStatus },
-        afterData: { status: newStatus },
-      });
-
-      this.selfWriteTracker?.markSelf(filePath, afterHash);
-      return { newHash: afterHash };
-    });
+        this.selfWriteTracker?.markSelf(filePath, afterHash);
+        return { newHash: afterHash };
+      }),
+    );
   }
 
   async updateOrder(
@@ -145,45 +170,50 @@ export class TaskWriter {
     newOrder: number,
     actor: JournalEntry["actor"] = "user",
   ): Promise<WriteResult> {
-    return this.pathLock.with(filePath, async () => {
-      const file = this.getTFile(filePath);
-      const before = await this.app.vault.read(file);
-      const beforeHash = sha256(before);
-      if (beforeHash !== expectedHash) {
-        throw new ConflictError(
-          `content hash mismatch for ${filePath}`,
-          filePath,
-          expectedHash,
+    this.assertWritable();
+    return this.withProcessLock(() =>
+      this.pathLock.with(filePath, async () => {
+        const file = this.getTFile(filePath);
+        const before = await this.app.vault.read(file);
+        const beforeHash = sha256(before);
+        if (beforeHash !== expectedHash) {
+          throw new ConflictError(
+            `content hash mismatch for ${filePath}`,
+            filePath,
+            expectedHash,
+            beforeHash,
+          );
+        }
+
+        const parsed = parseFile(before);
+        const beforeOrder = typeof parsed.data.order === "number" ? parsed.data.order : undefined;
+        const newData: Record<string, unknown> = { ...parsed.data };
+        newData.order = newOrder;
+        newData.updated = todayYmd();
+        normalizeFrontmatterDataRecord(newData);
+
+        const newContent = stringifyFile(parsed.content, newData);
+        await this.app.vault.modify(file, newContent);
+
+        const after = await this.app.vault.read(file);
+        const afterHash = sha256(after);
+
+        await this.journal.append({
+          ts: new Date().toISOString(),
+          op: "updateOrder",
+          path: filePath,
           beforeHash,
-        );
-      }
+          afterHash,
+          actor,
+          approved: true,
+          beforeData: { order: beforeOrder },
+          afterData: { order: newOrder },
+        });
 
-      let beforeOrder: number | undefined;
-      await this.app.fileManager.processFrontMatter(file, (fm) => {
-        beforeOrder = typeof fm.order === "number" ? fm.order : undefined;
-        fm.order = newOrder;
-        fm.updated = todayYmd();
-        normalizeFrontmatterDates(fm);
-      });
-
-      const after = await this.app.vault.read(file);
-      const afterHash = sha256(after);
-
-      await this.journal.append({
-        ts: new Date().toISOString(),
-        op: "updateOrder",
-        path: filePath,
-        beforeHash,
-        afterHash,
-        actor,
-        approved: true,
-        beforeData: { order: beforeOrder },
-        afterData: { order: newOrder },
-      });
-
-      this.selfWriteTracker?.markSelf(filePath, afterHash);
-      return { newHash: afterHash };
-    });
+        this.selfWriteTracker?.markSelf(filePath, afterHash);
+        return { newHash: afterHash };
+      }),
+    );
   }
 
   /** status + order の同時更新（列間ドラッグ＋同列順序の同期）*/
@@ -195,48 +225,52 @@ export class TaskWriter {
     actor: JournalEntry["actor"] = "user",
   ): Promise<WriteResult> {
     assertValidStatus(newStatus);
-    return this.pathLock.with(filePath, async () => {
-      const file = this.getTFile(filePath);
-      const before = await this.app.vault.read(file);
-      const beforeHash = sha256(before);
-      if (beforeHash !== expectedHash) {
-        throw new ConflictError(
-          `content hash mismatch for ${filePath}`,
-          filePath,
-          expectedHash,
+    this.assertWritable();
+    return this.withProcessLock(() =>
+      this.pathLock.with(filePath, async () => {
+        const file = this.getTFile(filePath);
+        const before = await this.app.vault.read(file);
+        const beforeHash = sha256(before);
+        if (beforeHash !== expectedHash) {
+          throw new ConflictError(
+            `content hash mismatch for ${filePath}`,
+            filePath,
+            expectedHash,
+            beforeHash,
+          );
+        }
+
+        const parsed = parseFile(before);
+        const beforeStatus = typeof parsed.data.status === "string" ? parsed.data.status : undefined;
+        const beforeOrder = typeof parsed.data.order === "number" ? parsed.data.order : undefined;
+        const newData: Record<string, unknown> = { ...parsed.data };
+        newData.status = newStatus;
+        newData.order = newOrder;
+        newData.updated = todayYmd();
+        normalizeFrontmatterDataRecord(newData);
+
+        const newContent = stringifyFile(parsed.content, newData);
+        await this.app.vault.modify(file, newContent);
+
+        const after = await this.app.vault.read(file);
+        const afterHash = sha256(after);
+
+        await this.journal.append({
+          ts: new Date().toISOString(),
+          op: "updateFrontmatter",
+          path: filePath,
           beforeHash,
-        );
-      }
+          afterHash,
+          actor,
+          approved: true,
+          beforeData: { status: beforeStatus, order: beforeOrder },
+          afterData: { status: newStatus, order: newOrder },
+        });
 
-      let beforeStatus: string | undefined;
-      let beforeOrder: number | undefined;
-      await this.app.fileManager.processFrontMatter(file, (fm) => {
-        beforeStatus = typeof fm.status === "string" ? fm.status : undefined;
-        beforeOrder = typeof fm.order === "number" ? fm.order : undefined;
-        fm.status = newStatus;
-        fm.order = newOrder;
-        fm.updated = todayYmd();
-        normalizeFrontmatterDates(fm);
-      });
-
-      const after = await this.app.vault.read(file);
-      const afterHash = sha256(after);
-
-      await this.journal.append({
-        ts: new Date().toISOString(),
-        op: "updateFrontmatter",
-        path: filePath,
-        beforeHash,
-        afterHash,
-        actor,
-        approved: true,
-        beforeData: { status: beforeStatus, order: beforeOrder },
-        afterData: { status: newStatus, order: newOrder },
-      });
-
-      this.selfWriteTracker?.markSelf(filePath, afterHash);
-      return { newHash: afterHash };
-    });
+        this.selfWriteTracker?.markSelf(filePath, afterHash);
+        return { newHash: afterHash };
+      }),
+    );
   }
 
   /**
@@ -262,6 +296,7 @@ export class TaskWriter {
     patch: { frontmatter?: Partial<TaskFrontmatter>; bodyMarkdown?: string },
     actor: JournalEntry["actor"] = "user",
   ): Promise<WriteResult> {
+    this.assertWritable();
     // patch.frontmatter は実行時 (AI 経由 含む) に来る可能性があるので、ここで検証
     const sanitizedFm = sanitizeFrontmatterPatch(patch.frontmatter);
 
@@ -275,7 +310,7 @@ export class TaskWriter {
       }
     }
 
-    return this.pathLock.with(filePath, async () => {
+    return this.withProcessLock(() => this.pathLock.with(filePath, async () => {
       const file = this.getTFile(filePath);
       const before = await this.app.vault.read(file);
       const beforeHash = sha256(before);
@@ -340,7 +375,7 @@ export class TaskWriter {
 
       this.selfWriteTracker?.markSelf(filePath, afterHash);
       return { newHash: afterHash };
-    });
+    }));
   }
 
   /**
@@ -358,6 +393,7 @@ export class TaskWriter {
     expectedHash: string,
     actor: JournalEntry["actor"] = "user",
   ): Promise<{ archivePath: string }> {
+    this.assertWritable();
     // path validation (vault 相対の安全な path 形式に限定)
     if (!isSafeRelativePath(tasksDir)) throw new Error(`invalid tasksDir: ${tasksDir}`);
     if (!isSafeRelativePath(filePath)) throw new Error(`invalid filePath: ${filePath}`);
@@ -368,7 +404,7 @@ export class TaskWriter {
       throw new Error(`already archived: ${filePath}`);
     }
 
-    return this.pathLock.with(filePath, async () => {
+    return this.withProcessLock(() => this.pathLock.with(filePath, async () => {
       const file = this.getTFile(filePath);
       const before = await this.app.vault.read(file);
       const beforeHash = sha256(before);
@@ -417,7 +453,7 @@ export class TaskWriter {
       });
 
       return { archivePath: finalPath };
-    });
+    }));
   }
 
   /**
@@ -433,12 +469,13 @@ export class TaskWriter {
     expectedHash: string,
     actor: JournalEntry["actor"] = "user",
   ): Promise<void> {
+    this.assertWritable();
     if (!isSafeRelativePath(tasksDir)) throw new Error(`invalid tasksDir: ${tasksDir}`);
     if (!isSafeRelativePath(filePath)) throw new Error(`invalid filePath: ${filePath}`);
     if (!filePath.startsWith(tasksDir + "/")) {
       throw new Error(`delete path outside tasks dir: ${filePath}`);
     }
-    return this.pathLock.with(filePath, async () => {
+    return this.withProcessLock(() => this.pathLock.with(filePath, async () => {
       const file = this.getTFile(filePath);
       const before = await this.app.vault.read(file);
       const beforeHash = sha256(before);
@@ -465,7 +502,7 @@ export class TaskWriter {
         beforeData: { from: filePath },
         afterData: { trashed: true },
       });
-    });
+    }));
   }
 
   /**
@@ -480,12 +517,13 @@ export class TaskWriter {
     tasksDir: string,
     actor: JournalEntry["actor"] = "user",
   ): Promise<{ restoredPath: string }> {
+    this.assertWritable();
     if (!isSafeRelativePath(tasksDir)) throw new Error(`invalid tasksDir: ${tasksDir}`);
     if (!isSafeRelativePath(archivedPath)) throw new Error(`invalid archivedPath: ${archivedPath}`);
     if (!archivedPath.startsWith(tasksDir + "/_archive/")) {
       throw new Error(`restore source must be inside _archive: ${archivedPath}`);
     }
-    return this.pathLock.with(archivedPath, async () => {
+    return this.withProcessLock(() => this.pathLock.with(archivedPath, async () => {
       const file = this.getTFile(archivedPath);
       const before = await this.app.vault.read(file);
       const beforeHash = sha256(before);
@@ -513,7 +551,7 @@ export class TaskWriter {
       // restore 先は VaultWatcher の reload 対象 (tasks/ 直下) なので markSelf
       this.selfWriteTracker?.markSelf(restoredPath, beforeHash);
       return { restoredPath };
-    });
+    }));
   }
 
   private getTFile(filePath: string): TFile {
@@ -615,22 +653,20 @@ function todayYmd(): string {
   return `${y}-${m}-${day}`;
 }
 
-/**
- * 日付フィールドの正規化対象キー。
- *
- * processFrontMatter callback 内で参照され、Date オブジェクトや ISO 8601 文字列が
- * frontmatter に紛れていた場合に YYYY-MM-DD 形式に揃える。
- *
- * 背景: Obsidian の processFrontMatter は内部で js-yaml の parseYaml + stringifyYaml
- * を回す。parseYaml は YAML 1.1 timestamp 互換で "2026-05-12" を Date オブジェクトに
- * 自動変換し、stringifyYaml は Date を "2026-05-12T00:00:00.000Z" 形式で書き戻すため、
- * 何もしないと updateStatus / updateOrder のたびに created / due / completedAt が
- * ISO 8601 化されてファイル内容が劣化する。
- */
+/** 日付フィールドの正規化対象キー。 */
 const NORMALIZED_DATE_FIELDS = ["created", "updated", "due", "completedAt"] as const;
 
 /**
- * processFrontMatter callback 内で呼ぶ。Date / ISO 8601 文字列を YYYY-MM-DD に正規化。
+ * parseFile 経由のデータレコードに対する日付正規化。
+ * parseFile は内部で normalizeDateValues を回すため本来不要だが、
+ * 万一 Date が残っているケースの保険として updateStatus/updateOrder 等で呼ぶ。
+ */
+function normalizeFrontmatterDataRecord(fm: Record<string, unknown>): void {
+  normalizeFrontmatterDates(fm);
+}
+
+/**
+ * Date / ISO 8601 文字列を YYYY-MM-DD に正規化。
  * 値が null / undefined / 既に YYYY-MM-DD 文字列ならそのまま。
  * Date の解釈は UTC（YAML parser が date-only literal を UTC midnight で生成するため）。
  */

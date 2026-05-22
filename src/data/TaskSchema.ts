@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { isValidRecurrenceSpec } from "./Recurrence";
+import { isValidDate } from "../util/dateFormat";
 
 export const STATUS_VALUES = ["定期", "未着手", "進行中", "確認待ち", "完了", "凍結"] as const;
 export type Status = (typeof STATUS_VALUES)[number];
@@ -52,7 +54,10 @@ function toYmdIfDateLike(v: unknown): unknown {
 
 const dateString = z.preprocess(
   toYmdIfDateLike,
-  z.string().regex(ISO_DATE, "must be YYYY-MM-DD"),
+  z
+    .string()
+    .regex(ISO_DATE, "must be YYYY-MM-DD")
+    .refine(isValidDate, "実在しない日付です"),
 );
 
 const nullableDateString = z.preprocess(
@@ -60,7 +65,13 @@ const nullableDateString = z.preprocess(
     if (v === null) return null;
     return toYmdIfDateLike(v);
   },
-  z.union([z.string().regex(ISO_DATE, "must be YYYY-MM-DD"), z.null()]),
+  z.union([
+    z
+      .string()
+      .regex(ISO_DATE, "must be YYYY-MM-DD")
+      .refine(isValidDate, "実在しない日付です"),
+    z.null(),
+  ]),
 );
 
 /**
@@ -95,7 +106,12 @@ export const TaskFrontmatterSchema = z
       .optional(),
     // Phase 7: 定期タスク。完了状態遷移時に次回分を自動複製する。
     // 書式: "daily" / "weekly:mon|tue|...|sun" / "monthly:1..31|lastday" / "every:Nd"
-    recurrence: z.union([z.string().min(1), z.null()]).optional(),
+    recurrence: z
+      .union([
+        z.string().min(1).refine(isValidRecurrenceSpec, "不正な繰り返し指定です"),
+        z.null(),
+      ])
+      .optional(),
     // v0.2.0: 定期タスクの履歴インスタンスマーカー（親の id を保持）。
     // 完了タブで「定期」バッジ表示の判定に使う。
     recurringHistoryOf: z.string().optional(),

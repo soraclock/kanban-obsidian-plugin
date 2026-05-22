@@ -72,6 +72,22 @@ function sanitizeBasename(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
+/**
+ * wikilink から取得したファイル名を安全なベースネームに正規化する。
+ * パス区切り (`/`, `\`)、ディレクトリトラバーサル (`..`)、制御文字を含む名前は
+ * 添付ディレクトリ外のファイルを操作するリスクがあるため null を返してスキップする。
+ */
+function sanitizeAttachmentName(raw: string): string | null {
+  // パス区切りを含む場合はベースネーム部分だけ取り出す
+  const basename = raw.split(/[/\\]/).pop() ?? "";
+  if (basename === "" || basename === "." || basename === "..") return null;
+  // ".." セグメントや制御文字を含む場合は拒否
+  if (/\.\./.test(basename)) return null;
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1f]/.test(basename)) return null;
+  return basename;
+}
+
 export function extractImageWikilinks(body: string): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
@@ -79,8 +95,8 @@ export function extractImageWikilinks(body: string): string[] {
   // exec を回す前に lastIndex を初期化 (state を持つ正規表現の再利用対策)
   WIKILINK_RE.lastIndex = 0;
   while ((m = WIKILINK_RE.exec(body)) !== null) {
-    const name = m[1]!;
-    if (!seen.has(name)) {
+    const name = sanitizeAttachmentName(m[1]!);
+    if (name && !seen.has(name)) {
       seen.add(name);
       out.push(name);
     }
@@ -217,17 +233,27 @@ export function ImageAttachments({ app, tasksDir, taskId, bodyMarkdown, onInsert
   };
 
   const onRemoveClick = async (filename: string): Promise<void> => {
-    if (!window.confirm(`「${filename}」を削除しますか？\n（vault からも削除されます）`)) return;
+    // 安全性チェック: ファイル名を再度サニタイズし、パストラバーサルを防ぐ
+    const safeName = sanitizeAttachmentName(filename);
+    if (!safeName) {
+      new Notice(`不正なファイル名です: ${filename}`);
+      return;
+    }
+    if (!window.confirm(`「${safeName}」を削除しますか？\n（vault からも削除されます）`)) return;
     const dir = attachmentDir;
-    const fullPath = dir === "" ? filename : `${dir}/${filename}`;
+    const fullPath = dir === "" ? safeName : `${dir}/${safeName}`;
     try {
       const f = app.vault.getAbstractFileByPath(fullPath);
       if (f) {
-        // TFile かどうか問わず vault.delete で削除（adapter 経由でゴミ箱）
+        // 解決されたファイルが添付ディレクトリ内にあることを確認
+        if (dir !== "" && !f.path.startsWith(dir + "/")) {
+          new Notice(`添付ディレクトリ外のファイルは削除できません`);
+          return;
+        }
         await app.vault.delete(f as TFile);
       }
-      onRemove(filename);
-      new Notice(`削除しました: ${filename}`);
+      onRemove(safeName);
+      new Notice(`削除しました: ${safeName}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message.slice(0, 80) : "不明なエラー";
       new Notice(`削除失敗: ${msg}`);

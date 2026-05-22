@@ -177,7 +177,7 @@ export function CardView({
  */
 export function Card({ task, ctx }: { task: Task; ctx: PluginContext }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: task.id,
+    id: task.filePath,
     data: { type: "card", task },
   });
   const openDetail = useBoardStore((s) => s.openDetail);
@@ -232,11 +232,11 @@ export function Card({ task, ctx }: { task: Task; ctx: PluginContext }) {
         new Notice("この定期タスクには繰り返し設定がありません。詳細画面で設定してください。");
         return;
       }
-      // 通常タスク: updateStatus で status=完了 にする (Undo 経路に乗せる)。
-      const result = await ctx.taskWriter.updateStatus(
+      // 通常タスク: updateTask で status=完了 + completedAt=today を同時更新。
+      const result = await ctx.taskWriter.updateTask(
         task.filePath,
         task.contentHash,
-        "完了",
+        { frontmatter: { status: "完了", completedAt: today } },
       );
       ctx.history.push({
         type: "status",
@@ -266,7 +266,7 @@ export function Card({ task, ctx }: { task: Task; ctx: PluginContext }) {
       ref={setNodeRef}
       style={style}
       className="kanban-card-wrapper"
-      data-task-id={task.id}
+      data-task-filepath={task.filePath}
       aria-label={`タスク ${task.title}。クリックで詳細、Space または Enter で並び替え`}
       onClick={onClick}
       {...attributes}

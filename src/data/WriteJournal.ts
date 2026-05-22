@@ -27,7 +27,9 @@ export type JournalOp =
   /** Phase 7: 新規タスク作成 */
   | "createTask"
   /** v0.3.0: タスクを OS ゴミ箱経由で削除 */
-  | "deleteTask";
+  | "deleteTask"
+  /** v0.6.4: 定期タスク完了時の履歴生成 + 親 due 更新 */
+  | "completeRecurring";
 
 export interface JournalEntry {
   ts: string;

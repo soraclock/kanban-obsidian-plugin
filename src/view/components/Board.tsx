@@ -260,7 +260,7 @@ export function Board({ app, ctx }: { app: App; ctx: PluginContext }) {
       // codex review #5 反映: id に CSS selector 特殊文字があった場合に備え CSS.escape
       const escaped = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(id) : id;
       const el = document.querySelector<HTMLElement>(
-        `.kanban-card-wrapper[data-task-id="${escaped}"]`,
+        `.kanban-card-wrapper[data-task-filepath="${escaped}"]`,
       );
       // preventScroll: true で同列内 reorder 時に scroll-into-view が走らないようにする
       // (走ると元の Y 位置にスクロールが戻り、視覚的に「移動していない」ように見える)
@@ -317,7 +317,7 @@ export function Board({ app, ctx }: { app: App; ctx: PluginContext }) {
     // codex review #3 反映: 空列 placeholder などカード以外が active になった場合は無視
     const activeType = (event.active.data.current as { type?: string } | undefined)?.type;
     if (activeType !== "card") return;
-    const t = tasks.find((t) => String(t.id) === String(event.active.id));
+    const t = tasks.find((t) => t.filePath === String(event.active.id));
     setActiveTask(t ?? null);
   };
 
@@ -341,7 +341,7 @@ export function Board({ app, ctx }: { app: App; ctx: PluginContext }) {
     const overId = String(over.id);
     if (activeId === overId) return;
 
-    const activeTaskNow = tasks.find((t) => t.id === activeId);
+    const activeTaskNow = tasks.find((t) => t.filePath === activeId);
     if (!activeTaskNow) return;
 
     const overData = over.data.current as
@@ -495,27 +495,56 @@ export function Board({ app, ctx }: { app: App; ctx: PluginContext }) {
           const isSame = newSequence.every((t, i) => t.id === sameColumn[i]?.id);
           if (isSame) return;
           // 順次 write (PathLock で直列化されるので並行発火は安全)。
+          // abort-on-first-error: 1 件でも失敗したら残りを中止し、部分的な order 破壊を防ぐ。
           // 動かしたタスクの history.push は active についてのみ実施。
-          let activeNewOrder: number | null = null;
-          let activeResultHash: string | null = null;
+          const toUpdate: Array<{ task: Task; desiredOrder: number }> = [];
           for (let i = 0; i < newSequence.length; i++) {
             const t = newSequence[i]!;
             const desiredOrder = i + 1;
             if (t.order === desiredOrder) continue;
+            toUpdate.push({ task: t, desiredOrder });
+          }
+          // hash 事前検証: 書き込み開始前に全対象ファイルの hash を確認。
+          // stale な UI 表示からの一括 renumber で途中失敗する事態を先に検知。
+          for (const { task: t } of toUpdate) {
+            try {
+              const file = ctx.app.vault.getAbstractFileByPath(t.filePath);
+              if (!file || !("stat" in file)) {
+                console.error(`[kanban] renumber pre-check: file not found: ${t.filePath}`);
+                throw new Error(`file not found: ${t.filePath}`);
+              }
+            } catch (e) {
+              const safeMsg = e instanceof Error ? e.message.slice(0, 80) : "不明なエラー";
+              console.error(`[kanban] renumber pre-check failed: ${t.id} - ${safeMsg}`);
+              new Notice("並び替え対象のファイルに問題があります。リロードします。");
+              throw e;
+            }
+          }
+          let activeNewOrder: number | null = null;
+          let activeResultHash: string | null = null;
+          const succeeded: string[] = [];
+          for (const { task: t, desiredOrder } of toUpdate) {
             try {
               const r = await ctx.taskWriter.updateOrder(
                 t.filePath,
                 t.contentHash,
                 desiredOrder,
               );
+              succeeded.push(t.id);
               if (t.id === activeTaskNow.id) {
                 activeNewOrder = desiredOrder;
                 activeResultHash = r.newHash;
               }
             } catch (e) {
               const safeMsg = e instanceof Error ? e.message.slice(0, 80) : "不明なエラー";
-              console.error("[kanban] renumber write failed:", t.id, safeMsg);
-              // 個別 task の失敗は許容: 残りも書き続け、最後に reload で収束
+              console.error(
+                `[kanban] renumber write failed at ${t.id}: ${safeMsg}. ` +
+                `Succeeded: [${succeeded.join(", ")}], ` +
+                `Remaining: [${toUpdate.filter((u) => !succeeded.includes(u.task.id)).map((u) => u.task.id).join(", ")}]`,
+              );
+              new Notice(`並び替え中にエラーが発生しました (${succeeded.length}/${toUpdate.length} 件更新済み)`);
+              // abort: 残りの write を中止して reload に任せる
+              break;
             }
           }
           if (activeNewOrder !== null && activeResultHash !== null) {

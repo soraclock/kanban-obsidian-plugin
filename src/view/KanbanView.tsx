@@ -44,11 +44,8 @@ export class KanbanView extends ItemView {
   }
 
   async onClose(): Promise<void> {
-    // close 時に store state をリセット (review code-reviewer#Major 反映)
-    const store = useBoardStore.getState();
-    store.setTasks([]);
-    store.setErrors([]);
-    store.setLoading(false);
+    // close 時にセッション状態を全リセット (review code-reviewer#Major 反映)
+    useBoardStore.getState().resetSessionState();
 
     // 開く前に展開されていた sidebar を復元
     try {

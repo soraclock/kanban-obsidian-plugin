@@ -19,10 +19,20 @@ export interface EnvironmentGateOptions {
 const DEFAULT_BACKUP_MAX_AGE_DAYS = 7;
 
 export class EnvironmentGate {
+  private mode: GateMode = "normal";
+
   constructor(
     private readonly app: App,
     private readonly opts: EnvironmentGateOptions,
   ) {}
+
+  /**
+   * readOnly 状態でないとき true を返す。
+   * TaskWriter の write guard で使用する。
+   */
+  isWriteAllowed(): boolean {
+    return this.mode !== "readOnly";
+  }
 
   /**
    * 戻り値の `legacyLockToken` は L1 で旧 Hono の lock を取った場合のみ非 null。
@@ -40,6 +50,7 @@ export class EnvironmentGate {
     // review#Medium1 反映。
     if (errors.length > 0) {
       warnings.push("L1 failure: skipping L3 audit and L4 backup check (audit result would be unreliable)");
+      this.mode = "readOnly";
       return { mode: "readOnly", warnings, errors, legacyLockToken };
     }
 
@@ -55,6 +66,7 @@ export class EnvironmentGate {
     // L5: lifecycle 検査は PluginLifecycle.onLoad 側で実施済み（hot reload detach）
 
     const mode: GateMode = errors.length > 0 ? "readOnly" : "normal";
+    this.mode = mode;
     return { mode, warnings, errors, legacyLockToken };
   }
 

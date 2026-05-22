@@ -90,7 +90,14 @@ export default class KanbanPlugin extends Plugin {
     this.journal = new WriteJournal(this.app.vault, journalPath, this.pathLock);
     // Phase 5: SelfWriteTracker を TaskWriter / VaultWatcher の両方に渡す
     this.selfWriteTracker = new SelfWriteTracker();
-    this.taskWriter = new TaskWriter(this.app, this.pathLock, this.journal, this.selfWriteTracker);
+    this.taskWriter = new TaskWriter(
+      this.app,
+      this.pathLock,
+      this.journal,
+      this.selfWriteTracker,
+      this.gate ? () => this.gate!.isWriteAllowed() : undefined,
+      this.processLock,
+    );
     this.history = new OperationHistory();
 
     // Phase 3 services
