@@ -79,6 +79,48 @@ describe("TaskCreator", () => {
     expect(files[README_PATH]).toContain("K-0005");
   });
 
+  it("case 4b (v0.6.7): 旧形式 K-NNNN_*.md 衝突 — アンダースコア区切りでも採番が回避される", async () => {
+    // 他 vault から移行された旧形式: K-0003_神楽会の全体方針.md
+    const { files, creator } = buildEnv({
+      [`${TASKS_DIR}/K-0003_神楽会の全体方針.md`]: "dummy",
+    });
+
+    const result = await creator.createTask({ title: "新規", status: "未着手" });
+
+    // 旧形式 K-0003_ も衝突として検知されるので K-0004 で採番
+    expect(result.newId).toBe("K-0004");
+    expect(result.newFilePath).toContain("K-0004-");
+    expect(files[README_PATH]).toContain("K-0005");
+  });
+
+  it("case 4c (v0.6.7): 既存ファイルの max ID が README より大きい場合は自動で max+1 へ進む", async () => {
+    // README は K-0003 だが、実態は K-0114 までタスクが入っている移行 vault のケース
+    const existingFiles: Record<string, string> = {};
+    for (let i = 1; i <= 114; i++) {
+      existingFiles[`${TASKS_DIR}/K-${String(i).padStart(4, "0")}_既存タスク.md`] = "dummy";
+    }
+    const { files, creator } = buildEnv(existingFiles);
+
+    const result = await creator.createTask({ title: "新規", status: "未着手" });
+
+    // K-0115 で採番、README も K-0116 に書き戻される
+    expect(result.newId).toBe("K-0115");
+    expect(files[README_PATH]).toContain("K-0116");
+  });
+
+  it("case 4d (v0.6.7): 新旧形式混在 vault でも全 ID を見て max+1 を取る", async () => {
+    const { files, creator } = buildEnv({
+      [`${TASKS_DIR}/K-0050_旧形式タスク.md`]: "dummy",
+      [`${TASKS_DIR}/K-0080-新形式タスク.md`]: "dummy",
+      [`${TASKS_DIR}/K-0010.md`]: "dummy", // slug 無し形式
+    });
+
+    const result = await creator.createTask({ title: "新規", status: "未着手" });
+
+    expect(result.newId).toBe("K-0081");
+    expect(files[README_PATH]).toContain("K-0082");
+  });
+
   it("case 5: path validation — 特殊文字タイトルでも slug が空にならない (untitled fallback)", async () => {
     const { creator } = buildEnv();
 
@@ -208,17 +250,18 @@ describe("TaskCreator", () => {
     expect(files[README_PATH]).toContain("K-0002");
   });
 
-  it("case 11: 100 回連続衝突でエラー", async () => {
-    // tries > 100 でエラーになる実装なので、101 件衝突させる
-    // K-0003〜K-0103 (101 ファイル) を事前作成（slug は "untitled"）
+  it("case 11 (v0.6.7 改): 大量の既存ファイルがあっても max+1 ジャンプで一発採番", async () => {
+    // 旧テストは 100 回連続衝突 → throw を期待していたが、v0.6.7 で max+1 ジャンプを入れたため
+    // この事前条件では一発成功するように変わった。100 回連続衝突ガード自体は while ループの
+    // safety net としてコード上に残る（race condition でしか発火しない）。
     const existingFiles: Record<string, string> = {};
     for (let i = 3; i <= 103; i++) {
       existingFiles[`${TASKS_DIR}/K-${String(i).padStart(4, "0")}-untitled.md`] = "dummy";
     }
     const { creator } = buildEnv(existingFiles);
 
-    await expect(
-      creator.createTask({ title: "!!!", status: "未着手" }),
-    ).rejects.toThrow("100 回連続で衝突");
+    const result = await creator.createTask({ title: "新規", status: "未着手" });
+    // README は K-0003 だが max=103 なので K-0104 へ一発ジャンプ
+    expect(result.newId).toBe("K-0104");
   });
 });

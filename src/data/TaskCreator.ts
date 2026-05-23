@@ -10,6 +10,14 @@ import { ensureTasksFolder } from "./EnsureTasksFolder";
 import type { Status, Priority } from "./TaskSchema";
 
 const NEXT_ID_RE = /次のID:\s*\*\*K-(\d{4})\*\*/;
+/**
+ * 既存タスクファイル名から K-NNNN を抽出する正規表現。
+ * - 新形式: `K-0001-foo.md` (ハイフン + slug)
+ * - 旧形式 / 移行形式: `K-0001_foo.md` (アンダースコア + タイトル)
+ * - 拡張子直前で終わる: `K-0001.md`
+ * v0.6.7: 旧形式の vault からタスク移行されたケースで採番衝突 / max ID 取りこぼしを防ぐ。
+ */
+const TASK_ID_FILE_RE = /^K-(\d{4})(?:[-_].*)?\.md$/;
 
 export interface CreateTaskInput {
   title: string;
@@ -94,6 +102,21 @@ export class TaskCreator {
       const listed = await this.app.vault.adapter.list(this.tasksDir);
       const existingFiles = new Set(listed.files.map((f) => f.split("/").pop()!));
 
+      // v0.6.7: 既存ファイル全体から max ID を計算し、README の「次のID」が古ければ
+      // 自動的にそれより先へ進める（他 vault からタスク移行された後、README が初期値 K-0001
+      // のままになっているケースで採番衝突するバグの修正）。
+      let maxExistingId = 0;
+      for (const name of existingFiles) {
+        const im = name.match(TASK_ID_FILE_RE);
+        if (im) {
+          const n = parseInt(im[1]!, 10);
+          if (n > maxExistingId) maxExistingId = n;
+        }
+      }
+      if (maxExistingId + 1 > candidateNum) {
+        candidateNum = maxExistingId + 1;
+      }
+
       let tries = 0;
       while (true) {
         candidateId = "K-" + String(candidateNum).padStart(4, "0");
@@ -101,12 +124,13 @@ export class TaskCreator {
         if (!isSafeRelativePath(candidatePath) || !candidatePath.startsWith(this.tasksDir + "/")) {
           throw new Error(`invalid create path: ${candidatePath}`);
         }
-        // exact path 衝突 + 同一 ID プレフィックス（K-NNNN-*.md / K-NNNN.md）の衝突を両方チェック
-        const idPrefix = `${candidateId}-`;
-        const idExact = `${candidateId}.md`;
-        const hasIdCollision = Array.from(existingFiles).some(
-          (name) => name.startsWith(idPrefix) || name === idExact,
-        );
+        // v0.6.7: 同一 ID 番号を持つファイルを新旧両形式（K-NNNN-*.md / K-NNNN_*.md / K-NNNN.md）
+        // でまとめて検出する。`startsWith(idPrefix)` だけだと旧形式のアンダースコア区切りを
+        // 衝突として拾えず、frontmatter id レベルで重複する事故が起きていた。
+        const hasIdCollision = Array.from(existingFiles).some((name) => {
+          const im = name.match(TASK_ID_FILE_RE);
+          return im !== null && parseInt(im[1]!, 10) === candidateNum;
+        });
         if (!hasIdCollision) break;
         candidateNum += 1;
         tries += 1;
