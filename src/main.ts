@@ -21,6 +21,8 @@ import { SelfWriteTracker } from "./data/SelfWriteTracker";
 import { AiTaskGateway } from "./ai/AiTaskGateway";
 import { TaskCreator } from "./data/TaskCreator";
 import { useBoardStore } from "./store/boardStore";
+import { DuplicateRepairModal } from "./view/DuplicateRepairModal";
+import { detectDuplicates } from "./data/DuplicateIdRepair";
 import type { PluginContext } from "./view/PluginContext";
 
 export default class KanbanPlugin extends Plugin {
@@ -241,6 +243,28 @@ export default class KanbanPlugin extends Plugin {
       name: "Kanban: フィルタを全てクリア",
       callback: () => useBoardStore.getState().resetFilter(),
     });
+    // v0.6.8: 移行 vault で K-NNNN が重複した状態を検出して振り直す
+    this.addCommand({
+      id: "kanban-repair-duplicate-ids",
+      name: "Kanban: 重複IDを検出して振り直し",
+      callback: () => {
+        if (useBoardStore.getState().readOnly) {
+          new Notice("Kanban: 読み取り専用モードのため実行できません", 5000);
+          return;
+        }
+        if (!this.selfWriteTracker || !this.pathLock) {
+          new Notice("Kanban: プラグイン初期化中です", 3000);
+          return;
+        }
+        new DuplicateRepairModal(
+          this.app,
+          this.settings.tasksDir,
+          this.pathLock,
+          this.selfWriteTracker,
+          () => useBoardStore.getState().requestReload(),
+        ).open();
+      },
+    });
     this.addCommand({
       id: "kanban-new-task",
       name: "Kanban: 新規タスクを作成（未着手）",
@@ -281,12 +305,44 @@ export default class KanbanPlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => {
       void this.runDueDateNotice();
       void this.migrateRecurringTasksToScheduledStatus();
+      // v0.6.8: 重複IDがあれば Notice で通知して修復コマンドへ誘導
+      void this.checkDuplicateIds();
     });
 
     console.log("[kanban] plugin loaded.", {
       mobile: Platform.isMobile,
       legacyLocked: this.legacyLockToken != null,
     });
+  }
+
+  /**
+   * v0.6.8: 起動時に K-NNNN の重複を検出して Notice で警告。
+   * 他 vault から移行直後で v0.6.7 未満の採番バグを踏んだユーザーが、修復コマンドの
+   * 存在に気付けるようにする。検出のみで自動修復はしない（破壊的変更なので確認必須）。
+   */
+  private async checkDuplicateIds(): Promise<void> {
+    try {
+      const tasksDir = this.settings.tasksDir;
+      if (!tasksDir) return;
+      const listed = await this.app.vault.adapter.list(tasksDir);
+      const prefix = tasksDir.endsWith("/") ? tasksDir : tasksDir + "/";
+      const filenames: string[] = [];
+      for (const full of listed.files) {
+        if (!full.startsWith(prefix)) continue;
+        const rel = full.slice(prefix.length);
+        if (rel.includes("/")) continue;
+        filenames.push(rel);
+      }
+      const groups = detectDuplicates(filenames);
+      if (groups.length === 0) return;
+      const dupCount = groups.reduce((sum, g) => sum + g.filenames.length - 1, 0);
+      new Notice(
+        `Kanban: 重複IDが ${dupCount} 件見つかりました。コマンドパレットの「Kanban: 重複IDを検出して振り直し」で修復できます。`,
+        15000,
+      );
+    } catch (e) {
+      console.warn("[kanban] duplicate-id check failed:", e);
+    }
   }
 
   /**
