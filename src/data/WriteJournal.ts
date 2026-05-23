@@ -29,7 +29,9 @@ export type JournalOp =
   /** v0.3.0: タスクを OS ゴミ箱経由で削除 */
   | "deleteTask"
   /** v0.6.4: 定期タスク完了時の履歴生成 + 親 due 更新 */
-  | "completeRecurring";
+  | "completeRecurring"
+  /** v0.6.9: 重複ID修復コマンドによる rename + frontmatter id 更新 */
+  | "repairDuplicateId";
 
 export interface JournalEntry {
   ts: string;

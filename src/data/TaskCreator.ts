@@ -9,15 +9,16 @@ import { isSafeRelativePath } from "./TaskWriter";
 import { ensureTasksFolder } from "./EnsureTasksFolder";
 import type { Status, Priority } from "./TaskSchema";
 
-const NEXT_ID_RE = /次のID:\s*\*\*K-(\d{4})\*\*/;
+const NEXT_ID_RE = /次のID:\s*\*\*K-(\d{4,})\*\*/;
 /**
  * 既存タスクファイル名から K-NNNN を抽出する正規表現。
  * - 新形式: `K-0001-foo.md` (ハイフン + slug)
  * - 旧形式 / 移行形式: `K-0001_foo.md` (アンダースコア + タイトル)
  * - 拡張子直前で終わる: `K-0001.md`
  * v0.6.7: 旧形式の vault からタスク移行されたケースで採番衝突 / max ID 取りこぼしを防ぐ。
+ * v0.6.9: 4 桁固定だと K-10000 以降が抽出できないため `\d{4,}` で 4 桁以上を許容。
  */
-const TASK_ID_FILE_RE = /^K-(\d{4})(?:[-_].*)?\.md$/;
+const TASK_ID_FILE_RE = /^K-(\d{4,})(?:[-_].*)?\.md$/;
 
 export interface CreateTaskInput {
   title: string;

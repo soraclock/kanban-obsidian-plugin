@@ -252,15 +252,19 @@ export default class KanbanPlugin extends Plugin {
           new Notice("Kanban: 読み取り専用モードのため実行できません", 5000);
           return;
         }
-        if (!this.selfWriteTracker || !this.pathLock) {
+        if (!this.selfWriteTracker || !this.pathLock || !this.journal) {
           new Notice("Kanban: プラグイン初期化中です", 3000);
           return;
         }
+        const tasksDir = this.settings.tasksDir;
         new DuplicateRepairModal(
           this.app,
-          this.settings.tasksDir,
+          tasksDir,
+          `${tasksDir}/_README.md`,
           this.pathLock,
           this.selfWriteTracker,
+          this.journal,
+          this.processLock,
           () => useBoardStore.getState().requestReload(),
         ).open();
       },
@@ -319,6 +323,8 @@ export default class KanbanPlugin extends Plugin {
    * v0.6.8: 起動時に K-NNNN の重複を検出して Notice で警告。
    * 他 vault から移行直後で v0.6.7 未満の採番バグを踏んだユーザーが、修復コマンドの
    * 存在に気付けるようにする。検出のみで自動修復はしない（破壊的変更なので確認必須）。
+   * v0.6.9: 同日内は再通知しないよう data.json に lastDuplicateNotifyDate を保存。
+   * 通知ごとにユーザーが何度も同じ Notice を見続けるのを防ぐ。
    */
   private async checkDuplicateIds(): Promise<void> {
     try {
@@ -335,11 +341,16 @@ export default class KanbanPlugin extends Plugin {
       }
       const groups = detectDuplicates(filenames);
       if (groups.length === 0) return;
+      // 同日抑制: 既に通知済みなら skip
+      const data = ((await this.loadData()) ?? {}) as Record<string, unknown>;
+      const today = new Date().toISOString().slice(0, 10);
+      if (data.lastDuplicateNotifyDate === today) return;
       const dupCount = groups.reduce((sum, g) => sum + g.filenames.length - 1, 0);
       new Notice(
         `Kanban: 重複IDが ${dupCount} 件見つかりました。コマンドパレットの「Kanban: 重複IDを検出して振り直し」で修復できます。`,
         15000,
       );
+      await this.saveData({ ...data, lastDuplicateNotifyDate: today });
     } catch (e) {
       console.warn("[kanban] duplicate-id check failed:", e);
     }

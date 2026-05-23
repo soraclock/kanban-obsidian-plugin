@@ -1,6 +1,8 @@
 import { App, Modal, Notice, Setting } from "obsidian";
 import type { PathLock } from "../data/PathLock";
 import type { SelfWriteTracker } from "../data/SelfWriteTracker";
+import type { WriteJournal } from "../data/WriteJournal";
+import type { ProcessLock } from "../data/ProcessLock";
 import {
   detectDuplicates,
   calcMaxId,
@@ -20,11 +22,17 @@ import {
  * の自己修復に使う。データ変更を伴うので必ず confirm を挟む。
  */
 export class DuplicateRepairModal extends Modal {
+  /** v0.6.9: 二重実行ガード（ボタン disabled に加えて Modal-level でも保護） */
+  private executing = false;
+
   constructor(
     app: App,
     private readonly tasksDir: string,
+    private readonly readmePath: string,
     private readonly pathLock: PathLock,
     private readonly selfWriteTracker: SelfWriteTracker,
+    private readonly journal: WriteJournal,
+    private readonly processLock: ProcessLock | undefined,
     private readonly onComplete: () => void,
   ) {
     super(app);
@@ -98,14 +106,19 @@ export class DuplicateRepairModal extends Modal {
           .setButtonText("振り直しを実行")
           .setCta()
           .onClick(async () => {
+            if (this.executing) return;
+            this.executing = true;
             btn.setDisabled(true).setButtonText("実行中...");
-            const result = await executeRepair(
-              this.app,
-              this.tasksDir,
+            const result = await executeRepair({
+              app: this.app,
+              tasksDir: this.tasksDir,
+              readmePath: this.readmePath,
               plans,
-              this.selfWriteTracker,
-              this.pathLock,
-            );
+              pathLock: this.pathLock,
+              selfWriteTracker: this.selfWriteTracker,
+              journal: this.journal,
+              processLock: this.processLock,
+            });
             if (result.failed.length === 0) {
               new Notice(
                 `Kanban: ${result.succeeded.length} 件の重複IDを振り直しました`,

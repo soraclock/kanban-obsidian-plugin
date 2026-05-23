@@ -3,6 +3,8 @@ import { parseFile, stringifyFile } from "./Frontmatter";
 import { sha256 } from "./ContentHash";
 import { PathLock } from "./PathLock";
 import type { SelfWriteTracker } from "./SelfWriteTracker";
+import type { WriteJournal } from "./WriteJournal";
+import type { ProcessLock } from "./ProcessLock";
 
 /**
  * 同一 ID 番号を持つファイルが複数存在する状態を表す。
@@ -29,8 +31,17 @@ export interface RenamePlan {
   newIdNum: number;
 }
 
-/** ファイル名から K-NNNN を抽出。新形式 `K-NNNN-*.md` と旧形式 `K-NNNN_*.md`、slug 無し `K-NNNN.md` を全部拾う。 */
-const TASK_ID_FILE_RE = /^K-(\d{4})(?:[-_](.+))?\.md$/;
+/**
+ * ファイル名から K-NNNN を抽出。
+ * 新形式 `K-NNNN-*.md` / 旧形式 `K-NNNN_*.md` / slug 無し `K-NNNN.md` を全部拾う。
+ * v0.6.9: 4 桁固定だと 9999 タスクで破綻するため `\d{4,}` で 4 桁以上を許容。
+ */
+const TASK_ID_FILE_RE = /^K-(\d{4,})(?:[-_](.+))?\.md$/;
+
+/** v0.6.9: 4 桁を保証しつつ ID 番号が 9999 を超えても安全に文字列化 */
+function formatIdNum(n: number): string {
+  return "K-" + String(n).padStart(4, "0");
+}
 
 /**
  * ディレクトリのファイル名群から重複している ID 番号を検出する。
@@ -53,8 +64,8 @@ export function detectDuplicates(filenames: string[]): DuplicateGroup[] {
       // 旧形式（アンダースコア）を「元から居た側」とみなして先頭固定、その後はファイル名昇順。
       // 振り直されるのは 2 件目以降なので、新規作成された K-NNNN-*.md が振り直し対象になる。
       filenames: [...filenames].sort((a, b) => {
-        const aOld = a.match(/^K-\d{4}_/) !== null;
-        const bOld = b.match(/^K-\d{4}_/) !== null;
+        const aOld = a.match(/^K-\d{4,}_/) !== null;
+        const bOld = b.match(/^K-\d{4,}_/) !== null;
         if (aOld && !bOld) return -1;
         if (!aOld && bOld) return 1;
         return a.localeCompare(b);
@@ -94,10 +105,9 @@ export function planRepair(
       const filename = g.filenames[i]!;
       const m = filename.match(TASK_ID_FILE_RE);
       const slug = m && m[2] ? m[2] : "renamed";
-      const newId = "K-" + String(nextId).padStart(4, "0");
       plans.push({
         oldFilename: filename,
-        newFilename: `${newId}-${slug}.md`,
+        newFilename: `${formatIdNum(nextId)}-${slug}.md`,
         oldIdNum: g.idNum,
         newIdNum: nextId,
       });
@@ -109,6 +119,7 @@ export function planRepair(
 
 /**
  * frontmatter の id フィールドを差し替えた新 markdown 文字列を返す純関数。
+ * v0.6.9: 既に新 id と等しい場合は再書き込み不要で同じ文字列を返す（冪等）。
  * id が無いファイルや parse 失敗時は throw する（呼び出し側で個別に catch）。
  */
 export function rewriteFrontmatterId(content: string, newId: string): string {
@@ -116,8 +127,20 @@ export function rewriteFrontmatterId(content: string, newId: string): string {
   if (typeof parsed.data.id !== "string") {
     throw new Error("frontmatter に id がありません");
   }
+  if (parsed.data.id === newId) {
+    return content;
+  }
   const nextData = { ...parsed.data, id: newId };
   return stringifyFile(parsed.content, nextData);
+}
+
+/** _README.md の「次のID」を K-NNNN に書き換えた新文字列を返す。一致するパターンが無ければ throw。 */
+export function rewriteReadmeNextId(readmeText: string, nextId: string): string {
+  const re = /次のID:\s*\*\*K-\d{4,}\*\*/;
+  if (!re.test(readmeText)) {
+    throw new Error("_README.md に「次のID」パターンが見つかりません");
+  }
+  return readmeText.replace(re, `次のID: **${nextId}**`);
 }
 
 export interface RepairExecutionResult {
@@ -125,59 +148,154 @@ export interface RepairExecutionResult {
   failed: { plan: RenamePlan; error: string }[];
 }
 
+export interface ExecuteRepairOptions {
+  app: App;
+  tasksDir: string;
+  readmePath: string;
+  plans: RenamePlan[];
+  pathLock: PathLock;
+  selfWriteTracker: SelfWriteTracker;
+  journal: WriteJournal;
+  processLock?: ProcessLock;
+}
+
 /**
  * RenamePlan 群を順次実行する。各 plan は独立に try/catch するので途中失敗で全体停止しない。
- * 中断後に再実行しても、成功した plan は既に新 ID に置き換わっているため次回は重複検出から外れる。
  *
- * 順序: frontmatter id 更新 (modify) → ファイル rename。modify 結果の hash を SelfWriteTracker
- * に記録して VaultWatcher の echo を抑止。PathLock は old/new 両 path を取って rename race を防ぐ。
+ * 安全性の設計 (v0.6.9 強化):
+ * - ProcessLock で全体を直列化（複数 Obsidian instance / sync の race を防ぐ）
+ * - PathLock を old/new 両 path にネスト
+ * - 順序: rename → modify。rename 失敗時はファイル状態に変化なし。
+ *   rename 成功 / modify 失敗時はベストエフォートで rename を巻き戻す。
+ * - rename は app.fileManager.renameFile で行う（vault.rename と違い、他ファイルからの
+ *   wiki link `[[K-0001-foo]]` が自動追従する）
+ * - 各 plan 完了時に WriteJournal に repairDuplicateId エントリを append（監査トレイル）
+ * - 全 plan 終了後、_README.md の「次のID」が最大新 ID + 1 より小さければ更新
  */
 export async function executeRepair(
-  app: App,
-  tasksDir: string,
-  plans: RenamePlan[],
-  selfWriteTracker: SelfWriteTracker,
-  pathLock: PathLock,
+  opts: ExecuteRepairOptions,
 ): Promise<RepairExecutionResult> {
-  const succeeded: RenamePlan[] = [];
-  const failed: { plan: RenamePlan; error: string }[] = [];
+  const { app, tasksDir, readmePath, plans, pathLock, selfWriteTracker, journal, processLock } = opts;
 
-  for (const plan of plans) {
-    const oldPath = `${tasksDir}/${plan.oldFilename}`;
-    const newPath = `${tasksDir}/${plan.newFilename}`;
-    try {
-      // rename 後の path にも race で同名ファイルが作られないよう、old/new 両方をロック。
-      // 順序固定 (oldPath → newPath) でデッドロック回避。
-      await pathLock.with(oldPath, async () => {
-        await pathLock.with(newPath, async () => {
-          // newPath に同名ファイルが既にある場合は中断（rename で上書きが起きないようガード）
-          if (app.vault.getAbstractFileByPath(newPath)) {
-            throw new Error(`振り直し先が既に存在します: ${newPath}`);
-          }
-          const file = app.vault.getAbstractFileByPath(oldPath);
-          if (!file || !("stat" in file)) {
-            throw new Error(`ファイルが見つかりません: ${oldPath}`);
-          }
-          const tfile = file as TFile;
-          const content = await app.vault.read(tfile);
-          const newId = "K-" + String(plan.newIdNum).padStart(4, "0");
-          const updated = rewriteFrontmatterId(content, newId);
-          const newHash = sha256(updated);
-          selfWriteTracker.markSelf(oldPath, newHash);
-          await app.vault.modify(tfile, updated);
-          // rename は path 変更のみ。新 path に対しても直後の echo を抑止するため記録する
-          selfWriteTracker.markSelf(newPath, newHash);
-          await app.vault.rename(tfile, newPath);
-        });
-      });
-      succeeded.push(plan);
-    } catch (e) {
-      failed.push({
-        plan,
-        error: e instanceof Error ? e.message : String(e),
-      });
+  // ProcessLock を全体で取得（複数 instance race 対策）。タイムアウトしたら全件失敗扱い。
+  if (processLock) {
+    const acquired = await processLock.acquire();
+    if (!acquired) {
+      return {
+        succeeded: [],
+        failed: plans.map((p) => ({ plan: p, error: "ProcessLock 取得タイムアウト" })),
+      };
     }
   }
 
-  return { succeeded, failed };
+  try {
+    const succeeded: RenamePlan[] = [];
+    const failed: { plan: RenamePlan; error: string }[] = [];
+
+    for (const plan of plans) {
+      const oldPath = `${tasksDir}/${plan.oldFilename}`;
+      const newPath = `${tasksDir}/${plan.newFilename}`;
+      try {
+        await pathLock.with(oldPath, async () => {
+          await pathLock.with(newPath, async () => {
+            if (app.vault.getAbstractFileByPath(newPath)) {
+              throw new Error(`振り直し先が既に存在します: ${newPath}`);
+            }
+            const file = app.vault.getAbstractFileByPath(oldPath);
+            if (!file || !("stat" in file)) {
+              throw new Error(`ファイルが見つかりません: ${oldPath}`);
+            }
+            const tfile = file as TFile;
+
+            const beforeContent = await app.vault.read(tfile);
+            const beforeHash = sha256(beforeContent);
+            const newId = formatIdNum(plan.newIdNum);
+            const updatedContent = rewriteFrontmatterId(beforeContent, newId);
+            const afterHash = sha256(updatedContent);
+
+            // rename 先行: 失敗してもファイル内容に変化なし。
+            // 成功した場合に備えて newPath 側に self-write を予約。
+            selfWriteTracker.markSelf(newPath, beforeHash);
+            selfWriteTracker.markSelf(newPath, afterHash);
+            await app.fileManager.renameFile(tfile, newPath);
+
+            // modify で frontmatter id を更新。失敗したら rename を巻き戻し（ベストエフォート）。
+            try {
+              await app.vault.modify(tfile, updatedContent);
+            } catch (modifyErr) {
+              try {
+                selfWriteTracker.markSelf(oldPath, beforeHash);
+                await app.fileManager.renameFile(tfile, oldPath);
+              } catch (rollbackErr) {
+                console.error(
+                  "[kanban] repair rollback (rename back) failed:",
+                  oldPath,
+                  rollbackErr,
+                );
+              }
+              throw modifyErr;
+            }
+
+            await journal.append({
+              ts: new Date().toISOString(),
+              op: "repairDuplicateId",
+              path: newPath,
+              beforeHash,
+              afterHash,
+              actor: "migration",
+              approved: true,
+              beforeData: {
+                oldFilename: plan.oldFilename,
+                oldId: formatIdNum(plan.oldIdNum),
+              },
+              afterData: {
+                newFilename: plan.newFilename,
+                newId,
+              },
+            });
+          });
+        });
+        succeeded.push(plan);
+      } catch (e) {
+        failed.push({
+          plan,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+
+    // _README.md の「次のID」を最大新 ID + 1 より小さければ更新する
+    if (succeeded.length > 0) {
+      try {
+        await pathLock.with(readmePath, async () => {
+          const readmeFile = app.vault.getAbstractFileByPath(readmePath);
+          if (!readmeFile || !("stat" in readmeFile)) return;
+          const tfile = readmeFile as TFile;
+          const readmeText = await app.vault.read(tfile);
+          const maxNewId = Math.max(...succeeded.map((p) => p.newIdNum));
+          const currentMatch = readmeText.match(/次のID:\s*\*\*K-(\d{4,})\*\*/);
+          if (!currentMatch) return;
+          const currentNext = parseInt(currentMatch[1]!, 10);
+          if (currentNext > maxNewId) return; // 既に十分大きければ更新不要
+          const nextId = formatIdNum(maxNewId + 1);
+          const updated = rewriteReadmeNextId(readmeText, nextId);
+          const newHash = sha256(updated);
+          selfWriteTracker.markSelf(readmePath, newHash);
+          await app.vault.modify(tfile, updated);
+        });
+      } catch (e) {
+        console.warn("[kanban] _README.md の「次のID」更新に失敗:", e);
+      }
+    }
+
+    return { succeeded, failed };
+  } finally {
+    if (processLock) {
+      try {
+        await processLock.release();
+      } catch (e) {
+        console.warn("[kanban] ProcessLock release error:", e);
+      }
+    }
+  }
 }
