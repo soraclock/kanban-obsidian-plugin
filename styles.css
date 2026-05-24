@@ -247,6 +247,17 @@
   touch-action: none;
 }
 
+/* タッチ端末ではスクロールを優先する。
+   @dnd-kit はデフォルトで touch-action: none を当てるが、activationConstraint に
+   delay を指定したときは manipulation でも drag を拾ってくれる。
+   media query (max-width) で絞ると iPad (768px+) が漏れるため、Obsidian が
+   Platform.isMobile に対して付与する body.is-mobile をゲートにする。
+   (Board.tsx の sensor 側 Platform.isMobile と判定基準を揃える) */
+body.is-mobile .kanban-root .kanban-card,
+body.is-mobile .kanban-root .kanban-list-card {
+  touch-action: manipulation;
+}
+
 .kanban-root .kanban-column-header {
   display: flex;
   justify-content: space-between;
@@ -2385,15 +2396,6 @@
   /* RecentCompletedSummary を小幅で折り返し */
   .kanban-root .kanban-recent-completed {
     flex-wrap: wrap;
-  }
-
-  /* タッチデバイスでスクロールを優先する。
-     @dnd-kit がデフォルトで touch-action: none を当てるが、activationConstraint
-     を delay 指定したときは manipulation を許可してくれる仕様。
-     念のため明示的に manipulation を当てて、ブラウザ側のスクロール委譲を確実にする。 */
-  .kanban-root .kanban-card,
-  .kanban-root .kanban-list-card {
-    touch-action: manipulation;
   }
 
   /* 「+」新規タスク追加ボタンが 16x14px と極小で iPhone では押せない。
