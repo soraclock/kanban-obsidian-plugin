@@ -1,5 +1,5 @@
 import type { App, TFile } from "obsidian";
-import { stringifyFile } from "./Frontmatter";
+import { stringifyFile, parseFile } from "./Frontmatter";
 import { PathLock } from "./PathLock";
 import type { ProcessLock } from "./ProcessLock";
 import { WriteJournal, type JournalEntry } from "./WriteJournal";
@@ -7,7 +7,9 @@ import { sha256 } from "./ContentHash";
 import { SelfWriteTracker } from "./SelfWriteTracker";
 import { isSafeRelativePath } from "./TaskWriter";
 import { ensureTasksFolder } from "./EnsureTasksFolder";
-import type { Status, Priority } from "./TaskSchema";
+import { TaskFrontmatterSchema, type Status, type Priority } from "./TaskSchema";
+import { parseSubtasks } from "./Subtasks";
+import type { Task } from "./Task";
 
 const NEXT_ID_RE = /次のID:\s*\*\*K-(\d{4,})\*\*/;
 /**
@@ -34,6 +36,9 @@ export interface CreateTaskInput {
 export interface CreateResult {
   newId: string;
   newFilePath: string;
+  /** vault.create 直後に content から構築した Task。vault/metadata API を経由しないため
+   * Obsidian/iCloud/mobile での metadata 追従遅延に関わらず即時にボードへ反映できる。 */
+  createdTask: Task;
 }
 
 /**
@@ -188,7 +193,21 @@ export class TaskCreator {
       // VaultWatcher の echo 抑制（任意）
       this.selfWriteTracker?.markSelf(candidatePath, afterHash);
 
-      return { newId: candidateId, newFilePath: candidatePath };
+      // content から直接 Task を構築（vault.read / metadataCache を経由しない）
+      const parsedContent = parseFile(content);
+      const fmResult = TaskFrontmatterSchema.safeParse(parsedContent.data);
+      if (!fmResult.success) {
+        throw new Error(`[create] internal: content schema invalid: ${fmResult.error.message}`);
+      }
+      const createdTask: Task = {
+        ...fmResult.data,
+        filePath: candidatePath,
+        contentHash: afterHash,
+        bodyMarkdown: parsedContent.content,
+        subtasks: parseSubtasks(parsedContent.content),
+      };
+
+      return { newId: candidateId, newFilePath: candidatePath, createdTask };
     });
     }); // withProcessLock
   }

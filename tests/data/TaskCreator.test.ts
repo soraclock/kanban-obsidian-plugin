@@ -3,6 +3,7 @@ import matter from "gray-matter";
 import { PathLock } from "../../src/data/PathLock";
 import { WriteJournal } from "../../src/data/WriteJournal";
 import { TaskCreator } from "../../src/data/TaskCreator";
+import { TaskFrontmatterSchema } from "../../src/data/TaskSchema";
 import { makeFakeApp } from "../helpers/fakeApp";
 
 const TASKS_DIR = "秘書/tasks";
@@ -263,5 +264,85 @@ describe("TaskCreator", () => {
     const result = await creator.createTask({ title: "新規", status: "未着手" });
     // README は K-0003 だが max=103 なので K-0104 へ一発ジャンプ
     expect(result.newId).toBe("K-0104");
+  });
+
+  it("case 12: createdTask が返る — filePath / id / status / contentHash が正しい", async () => {
+    const { creator } = buildEnv();
+
+    const result = await creator.createTask({ title: "即時反映テスト", status: "進行中", priority: "P1" });
+
+    expect(result.createdTask).toBeDefined();
+    expect(result.createdTask.filePath).toBe(result.newFilePath);
+    expect(result.createdTask.id).toBe(result.newId);
+    expect(result.createdTask.status).toBe("進行中");
+    expect(result.createdTask.priority).toBe("P1");
+    expect(result.createdTask.title).toBe("即時反映テスト");
+    // contentHash は空文字ではなく sha256 文字列
+    expect(result.createdTask.contentHash).toMatch(/^[0-9a-f]{64}$/);
+    // bodyMarkdown は空でない
+    expect(result.createdTask.bodyMarkdown).toContain("## 背景");
+  });
+
+  it("case 13 (v0.6.9 回帰): K-10000 以上の id が TaskFrontmatterSchema で parse される", () => {
+    const validId = "K-10000";
+    const parsed = TaskFrontmatterSchema.safeParse({
+      id: validId,
+      title: "大番号タスク",
+      status: "未着手",
+      assignee: "",
+      priority: "P2",
+      created: "2026-01-01",
+      updated: "2026-01-01",
+      tags: [],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.id).toBe("K-10000");
+  });
+
+  it("case 13b (v0.6.9 回帰): K-99999 も schema parse が通る", () => {
+    const parsed = TaskFrontmatterSchema.safeParse({
+      id: "K-99999",
+      title: "超大番号タスク",
+      status: "完了",
+      assignee: "テスト",
+      priority: "P0",
+      created: "2026-06-01",
+      updated: "2026-06-01",
+      tags: ["test"],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.id).toBe("K-99999");
+  });
+
+  it("case 13c (v0.6.9 回帰): 4 桁未満 K-001 は schema で reject される", () => {
+    const parsed = TaskFrontmatterSchema.safeParse({
+      id: "K-001",
+      title: "短い番号",
+      status: "未着手",
+      assignee: "",
+      priority: "P2",
+      created: "2026-01-01",
+      updated: "2026-01-01",
+      tags: [],
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it("case 14: createdTask が 5 桁 ID (K-10001) でも正しく構築される", async () => {
+    // README の次のIDが K-10000 より大きい既存ファイルを用意して K-10001 を採番させる
+    const existingFiles: Record<string, string> = {};
+    for (let i = 1; i <= 9999; i++) {
+      existingFiles[`${TASKS_DIR}/K-${String(i).padStart(4, "0")}-dummy.md`] = "dummy";
+    }
+    existingFiles[`${TASKS_DIR}/K-10000-dummy.md`] = "dummy";
+    const { creator } = buildEnv(existingFiles);
+
+    const result = await creator.createTask({ title: "5桁IDテスト", status: "未着手" });
+
+    expect(result.newId).toBe("K-10001");
+    expect(result.createdTask.id).toBe("K-10001");
+    expect(result.createdTask.filePath).toContain("K-10001-");
+    // TaskFrontmatterSchema で parse 済みのはずなので contentHash が存在する
+    expect(result.createdTask.contentHash).toMatch(/^[0-9a-f]{64}$/);
   });
 });

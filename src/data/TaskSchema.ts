@@ -17,7 +17,15 @@ export const PRIORITY_VALUES = ["P0", "P1", "P2", "P3"] as const;
 export type Priority = (typeof PRIORITY_VALUES)[number];
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-const TASK_ID = /^K-\d{4}$/;
+/**
+ * frontmatter の id 検証。`K-` + 4 桁以上のゼロ埋め連番。
+ * v0.6.9 で TaskCreator / DuplicateIdRepair のファイル名正規表現を `\d{4,}` に拡張し
+ * K-10000 以降を採番できるようにしたが、この schema 側が `\d{4}` 固定のまま取り残されていた。
+ * その結果、vault が K-9999 を超えると新規タスク (id=K-10000…) が作成されても
+ * TaskRepository.readOne / listAll の zod parse で弾かれ、ボードに反映されない不具合があった。
+ * ファイル名正規表現 (TaskCreator.TASK_ID_FILE_RE) と桁数許容を揃える。
+ */
+const TASK_ID = /^K-\d{4,}$/;
 
 /**
  * js-yaml は unquoted な `2026-04-30` 形式の ISO 日付を **Date オブジェクト** に
@@ -82,7 +90,7 @@ const nullableDateString = z.preprocess(
  */
 export const TaskFrontmatterSchema = z
   .object({
-    id: z.string().regex(TASK_ID, "id must match /^K-\\d{4}$/"),
+    id: z.string().regex(TASK_ID, "id must match /^K-\\d{4,}$/"),
     title: z.string().min(1),
     status: z.enum(STATUS_VALUES),
     assignee: z.string(),

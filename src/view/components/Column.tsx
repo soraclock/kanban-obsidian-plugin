@@ -79,8 +79,13 @@ export function Column({
       setCreating(false);
       setNewTitle("");
       newTitleRef.current = "";
-      // VaultWatcher は SelfWriteTracker で自己 write を echo skip するため、
-      // 書いた側で readOne → upsertTask を呼んでボード即時反映する
+      // 即時反映: vault.create 直後に構築済みの createdTask をボードに追加して DetailPane を開く。
+      // Obsidian/iCloud/mobile では vault.create 直後に getAbstractFileByPath/metadataCache が
+      // 追従せず、VaultWatcher は SelfWriteTracker で自己 write を skip するため、
+      // readOne に頼ると作成済みファイルがボードに即時反映されないことがある。
+      useBoardStore.getState().upsertTask(r.createdTask);
+      openDetail(r.newFilePath);
+      // 後方互換フォールバック: vault 側の実態に合わせた Task で上書き更新する
       let fresh: Awaited<ReturnType<typeof ctx.taskRepository.readOne>> = null;
       try {
         fresh = await ctx.taskRepository.readOne(r.newFilePath);
@@ -88,25 +93,21 @@ export function Column({
       } catch (e) {
         console.warn("[kanban] post-create refresh failed:", e);
       }
-      if (fresh) {
-        // upsert 成功 → DetailPane を即開く（subscribe / requestReload は不要）
-        openDetail(r.newFilePath);
-      } else {
-        // フォールバック: readOne が null（metadataCache 未追従等）の時のみ requestReload + subscribe
+      if (!fresh) {
+        // readOne が null（metadataCache 未追従等）の時のみ requestReload + subscribe
         requestReload();
-        let opened = false;
+        let updated = false;
         unsubRef.current = useBoardStore.subscribe((s) => {
-          if (opened) return;
+          if (updated) return;
           if (s.tasks.find((t) => t.filePath === r.newFilePath)) {
-            opened = true;
+            updated = true;
             unsubRef.current?.();
             unsubRef.current = null;
-            openDetail(r.newFilePath);
           }
         });
         setTimeout(() => {
-          if (!opened) {
-            opened = true;
+          if (!updated) {
+            updated = true;
             unsubRef.current?.();
             unsubRef.current = null;
           }
