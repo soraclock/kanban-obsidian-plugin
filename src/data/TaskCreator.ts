@@ -212,6 +212,41 @@ export class TaskCreator {
     }); // withProcessLock
   }
 
+  /**
+   * 削除などで ID 欠番が発生した後に README の「次のID」を実在する最大 ID + 1 に強制同期する。
+   * 途中でタスクを削除した際に「IDが見つかりません」エラーを防ぐための修復用メソッド。
+   */
+  async recalculateAndUpdateNextId(): Promise<void> {
+    const readmePath = `${this.tasksDir}/_README.md`;
+    return this.pathLock.with(readmePath, async () => {
+      await ensureTasksFolder(this.app, this.tasksDir);
+      const readmeFile = this.getTFile(readmePath);
+      const readmeText = await this.app.vault.read(readmeFile);
+
+      const listed = await this.app.vault.adapter.list(this.tasksDir);
+      const existingFiles = listed.files.map((f) => f.split("/").pop()!);
+
+      let maxExistingId = 0;
+      for (const name of existingFiles) {
+        const im = name.match(TASK_ID_FILE_RE);
+        if (im) {
+          const n = parseInt(im[1]!, 10);
+          if (n > maxExistingId) maxExistingId = n;
+        }
+      }
+
+      const newNext = maxExistingId + 1;
+      const updated = readmeText.replace(
+        NEXT_ID_RE,
+        `次のID: **K-${String(newNext).padStart(4, "0")}**`,
+      );
+
+      if (updated !== readmeText) {
+        await this.app.vault.modify(readmeFile, updated);
+      }
+    });
+  }
+
   private slugify(title: string): string {
     // コードポイント単位で 24 文字スライス (サロゲートペアの分割回避)
     const head = [...title].slice(0, 24).join("");
