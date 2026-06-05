@@ -93,6 +93,13 @@ export class TaskCreator {
     return this.withProcessLock(async () => {
     // 新規 vault / iCloud で _README.md が無い場合に自動生成（race は ProcessLock で直列化）
     await ensureTasksFolder(this.app, this.tasksDir);
+    // 削除などで発生した ID 欠番を先に修復（belt-and-suspenders）
+    try {
+      await this.recalculateAndUpdateNextId();
+    } catch (e) {
+      console.warn("[kanban] recalculateAndUpdateNextId failed (non-fatal):", e);
+    }
+
     const readmePath = `${this.tasksDir}/_README.md`;
     return this.pathLock.with(readmePath, async () => {
       const readmeFile = this.getTFile(readmePath);
