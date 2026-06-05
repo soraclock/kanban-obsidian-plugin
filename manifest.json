@@ -1,7 +1,7 @@
 {
   "id": "kanban-obsidian",
   "name": "Kanban Task Board",
-  "version": "0.6.10",
+  "version": "0.6.11",
   "minAppVersion": "1.4.0",
   "description": "Vault 内の Markdown ファイルをそのままタスク管理用カンバンとして扱うプラグイン。1 タスク = 1 ファイル、frontmatter ベースで Obsidian Sync / iCloud / Git と相性が良い。",
   "author": "hanaki",
