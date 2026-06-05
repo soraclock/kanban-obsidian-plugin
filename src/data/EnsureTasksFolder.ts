@@ -54,3 +54,24 @@ export async function ensureTasksFolder(app: App, tasksDir: string): Promise<voi
     }
   }
 }
+
+const NEXT_ID_LINE_RE = /次のID:\s*\*\*K-\d{4,}\*\*/;
+
+/**
+ * _README.md 本文の「次のID: **K-NNNN**」を nextIdNum に更新した新文字列を返す。
+ *
+ * 案A (v0.6.13): 採番の真実は実在タスクファイルの最大 ID であり、この「次のID」は
+ * 人間可読の参考値にすぎない。そのため:
+ * - 行が存在すれば置換する
+ * - 行が壊れている / 削除されている場合は throw せず、採番マーカー行を末尾に追記して
+ *   自己修復する（以前は replace が黙って no-op し、次回 createTask が
+ *   「次のID が見つかりません」で失敗する原因になっていた）。
+ */
+export function upsertReadmeNextId(readmeText: string, nextIdNum: number): string {
+  const nextId = "K-" + String(nextIdNum).padStart(4, "0");
+  if (NEXT_ID_LINE_RE.test(readmeText)) {
+    return readmeText.replace(NEXT_ID_LINE_RE, `次のID: **${nextId}**`);
+  }
+  const trimmed = readmeText.replace(/\s*$/, "");
+  return `${trimmed}\n\n次のID: **${nextId}**\n`;
+}

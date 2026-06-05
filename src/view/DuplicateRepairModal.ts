@@ -156,7 +156,14 @@ export class DuplicateRepairModal extends Modal {
       filenames.push(rel);
     }
     const groups = detectDuplicates(filenames);
-    const maxId = calcMaxId(filenames);
+    // v0.6.13: 振り直し先 ID は _archive 等サブフォルダのタスク ID とも衝突させない。
+    // TaskCreator の採番（vault 全体基準=案A）と一貫させ、修復が新たな重複を生むのを防ぐ。
+    // maxId 計算だけ vault 全体（tasksDir 配下）を見る。リネーム対象は上の top-level のみ。
+    const allBasenames = this.app.vault
+      .getMarkdownFiles()
+      .filter((f) => f.path.startsWith(prefix))
+      .map((f) => f.path.split("/").pop()!);
+    const maxId = calcMaxId(allBasenames);
     return planRepair(groups, maxId);
   }
 

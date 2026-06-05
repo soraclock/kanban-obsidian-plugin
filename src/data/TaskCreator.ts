@@ -6,12 +6,11 @@ import { WriteJournal, type JournalEntry } from "./WriteJournal";
 import { sha256 } from "./ContentHash";
 import { SelfWriteTracker } from "./SelfWriteTracker";
 import { isSafeRelativePath } from "./TaskWriter";
-import { ensureTasksFolder } from "./EnsureTasksFolder";
+import { ensureTasksFolder, upsertReadmeNextId } from "./EnsureTasksFolder";
 import { TaskFrontmatterSchema, type Status, type Priority } from "./TaskSchema";
 import { parseSubtasks } from "./Subtasks";
 import type { Task } from "./Task";
 
-const NEXT_ID_RE = /次のID:\s*\*\*K-(\d{4,})\*\*/;
 /**
  * 既存タスクファイル名から K-NNNN を抽出する正規表現。
  * - 新形式: `K-0001-foo.md` (ハイフン + slug)
@@ -93,42 +92,23 @@ export class TaskCreator {
     return this.withProcessLock(async () => {
     // 新規 vault / iCloud で _README.md が無い場合に自動生成（race は ProcessLock で直列化）
     await ensureTasksFolder(this.app, this.tasksDir);
-    // 削除などで発生した ID 欠番を先に修復（belt-and-suspenders）
-    try {
-      await this.recalculateAndUpdateNextId();
-    } catch (e) {
-      console.warn("[kanban] recalculateAndUpdateNextId failed (non-fatal):", e);
-    }
 
     const readmePath = `${this.tasksDir}/_README.md`;
     return this.pathLock.with(readmePath, async () => {
       const readmeFile = this.getTFile(readmePath);
       const readmeText = await this.app.vault.read(readmeFile);
-      const m = readmeText.match(NEXT_ID_RE);
-      if (!m) throw new Error("[create] _README.md の次のID が見つかりません");
-      let candidateNum = parseInt(m[1]!, 10);
 
       const slug = this.slugify(input.title);
       let candidateId: string;
       let candidatePath: string;
-      // ID プレフィックス重複を防ぐため、tasks ディレクトリ内の既存ファイル名を取得
-      const listed = await this.app.vault.adapter.list(this.tasksDir);
-      const existingFiles = new Set(listed.files.map((f) => f.split("/").pop()!));
 
-      // v0.6.7: 既存ファイル全体から max ID を計算し、README の「次のID」が古ければ
-      // 自動的にそれより先へ進める（他 vault からタスク移行された後、README が初期値 K-0001
-      // のままになっているケースで採番衝突するバグの修正）。
-      let maxExistingId = 0;
-      for (const name of existingFiles) {
-        const im = name.match(TASK_ID_FILE_RE);
-        if (im) {
-          const n = parseInt(im[1]!, 10);
-          if (n > maxExistingId) maxExistingId = n;
-        }
-      }
-      if (maxExistingId + 1 > candidateNum) {
-        candidateNum = maxExistingId + 1;
-      }
+      // 案A (v0.6.13): 採番の真実は README カウンタではなく「実在タスクファイルの最大 ID + 1」。
+      // 配布先ユーザーが README を知らずにタスクを削除・編集しても throw せず採番でき、
+      // 削除後の ID 欠番でも止まらない（従来は README 行が読めないと createTask が失敗していた）。
+      // adapter.list は top-level しか見ず _archive を取りこぼすため、tasksDir 配下を
+      // 再帰的に走査する getMarkdownFiles() を使い、アーカイブ済みタスクとも ID 衝突させない。
+      const { maxId, ids } = this.scanTaskIds();
+      let candidateNum = maxId + 1;
 
       let tries = 0;
       while (true) {
@@ -137,14 +117,7 @@ export class TaskCreator {
         if (!isSafeRelativePath(candidatePath) || !candidatePath.startsWith(this.tasksDir + "/")) {
           throw new Error(`invalid create path: ${candidatePath}`);
         }
-        // v0.6.7: 同一 ID 番号を持つファイルを新旧両形式（K-NNNN-*.md / K-NNNN_*.md / K-NNNN.md）
-        // でまとめて検出する。`startsWith(idPrefix)` だけだと旧形式のアンダースコア区切りを
-        // 衝突として拾えず、frontmatter id レベルで重複する事故が起きていた。
-        const hasIdCollision = Array.from(existingFiles).some((name) => {
-          const im = name.match(TASK_ID_FILE_RE);
-          return im !== null && parseInt(im[1]!, 10) === candidateNum;
-        });
-        if (!hasIdCollision) break;
+        if (!ids.has(candidateNum)) break;
         candidateNum += 1;
         tries += 1;
         if (tries > 100) throw new Error("[create] ID 採番が 100 回連続で衝突");
@@ -153,12 +126,10 @@ export class TaskCreator {
       const content = this.buildContent(candidateId, input);
       await this.app.vault.create(candidatePath, content);
 
-      // README の次のID を +1 で更新。失敗時はタスクファイルを補償削除 (review #10)
+      // README の「次のID」を +1 で更新（行が壊れ/欠落していれば挿入して自己修復）。
+      // 失敗時はタスクファイルを補償削除 (review #10)
       try {
-        const updated = readmeText.replace(
-          NEXT_ID_RE,
-          `次のID: **K-${String(candidateNum + 1).padStart(4, "0")}**`,
-        );
+        const updated = upsertReadmeNextId(readmeText, candidateNum + 1);
         await this.app.vault.modify(readmeFile, updated);
       } catch (readmeErr) {
         // 補償削除: ID カウンタが進まなかったので、作成済みタスクファイルを削除して ID 重複を防ぐ
@@ -220,38 +191,27 @@ export class TaskCreator {
   }
 
   /**
-   * 削除などで ID 欠番が発生した後に README の「次のID」を実在する最大 ID + 1 に強制同期する。
-   * 途中でタスクを削除した際に「IDが見つかりません」エラーを防ぐための修復用メソッド。
+   * tasksDir 配下（サブフォルダ _archive 含む）の全 K-NNNN を走査し、最大 ID 番号と
+   * 既存 ID 番号の集合を返す。案A の採番（実ファイル最大 +1）と衝突回避に使う。
+   *
+   * 新旧両形式（K-NNNN-*.md / K-NNNN_*.md / K-NNNN.md）を TASK_ID_FILE_RE でまとめて拾う。
+   * adapter.list（top-level のみ）ではなく getMarkdownFiles() を使うことで、_archive 配下に
+   * 退避したタスクの ID も最大値・衝突判定に含め、アーカイブ済みタスクとの ID 重複を防ぐ。
    */
-  async recalculateAndUpdateNextId(): Promise<void> {
-    const readmePath = `${this.tasksDir}/_README.md`;
-    return this.pathLock.with(readmePath, async () => {
-      await ensureTasksFolder(this.app, this.tasksDir);
-      const readmeFile = this.getTFile(readmePath);
-      const readmeText = await this.app.vault.read(readmeFile);
-
-      const listed = await this.app.vault.adapter.list(this.tasksDir);
-      const existingFiles = listed.files.map((f) => f.split("/").pop()!);
-
-      let maxExistingId = 0;
-      for (const name of existingFiles) {
-        const im = name.match(TASK_ID_FILE_RE);
-        if (im) {
-          const n = parseInt(im[1]!, 10);
-          if (n > maxExistingId) maxExistingId = n;
-        }
-      }
-
-      const newNext = maxExistingId + 1;
-      const updated = readmeText.replace(
-        NEXT_ID_RE,
-        `次のID: **K-${String(newNext).padStart(4, "0")}**`,
-      );
-
-      if (updated !== readmeText) {
-        await this.app.vault.modify(readmeFile, updated);
-      }
-    });
+  private scanTaskIds(): { maxId: number; ids: Set<number> } {
+    const ids = new Set<number>();
+    let maxId = 0;
+    const prefix = this.tasksDir + "/";
+    for (const f of this.app.vault.getMarkdownFiles()) {
+      if (!f.path.startsWith(prefix)) continue;
+      const name = f.path.split("/").pop() ?? "";
+      const im = name.match(TASK_ID_FILE_RE);
+      if (!im) continue;
+      const n = parseInt(im[1]!, 10);
+      ids.add(n);
+      if (n > maxId) maxId = n;
+    }
+    return { maxId, ids };
   }
 
   private slugify(title: string): string {

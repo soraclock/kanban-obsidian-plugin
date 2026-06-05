@@ -35,16 +35,17 @@ function buildEnv(extraFiles: Record<string, string> = {}, defaultAssignee = "�
 }
 
 describe("TaskCreator", () => {
-  it("case 1: 正常作成 — ファイルが作られ _README.md の次のID が +1 される", async () => {
+  it("case 1 (v0.6.13 案A): 正常作成 — 実ファイルが無ければ K-0001 から採番し README を +1 する", async () => {
+    // 案A: README の「次のID K-0003」は参考値。実在タスクファイルが 0 件なので採番は K-0001。
     const { files, creator } = buildEnv();
 
     const result = await creator.createTask({ title: "テストタスク", status: "未着手" });
 
-    expect(result.newId).toBe("K-0003");
-    expect(result.newFilePath).toContain("K-0003-");
+    expect(result.newId).toBe("K-0001");
+    expect(result.newFilePath).toContain("K-0001-");
     expect(files[result.newFilePath]).toBeDefined();
-    // README が K-0004 に更新されている
-    expect(files[README_PATH]).toContain("K-0004");
+    // README が採番値 +1 = K-0002 に更新されている
+    expect(files[README_PATH]).toContain("K-0002");
   });
 
   it("case 2: slug 生成 — 日本語タイトルが kebab 化される", async () => {
@@ -53,8 +54,8 @@ describe("TaskCreator", () => {
     // ー (U+30FC) はカタカナ範囲 ァ-ヶ の外なので '-' に変換される
     const result = await creator.createTask({ title: "週次レビュー会議", status: "進行中" });
 
-    // K-0003- で始まり、日本語部分を含む slug が入っている
-    expect(result.newFilePath).toContain("K-0003-");
+    // K-0001- で始まり（実ファイル0件のため案Aで先頭採番）、日本語部分を含む slug が入っている
+    expect(result.newFilePath).toContain("K-0001-");
     expect(result.newFilePath).toContain("週次レビュ");
     expect(result.newFilePath).toContain("会議");
   });
@@ -143,7 +144,7 @@ describe("TaskCreator", () => {
 
     const content = files[result.newFilePath]!;
     const parsed = matter(content);
-    expect(parsed.data.id).toBe("K-0003");
+    expect(parsed.data.id).toBe("K-0001");
     expect(parsed.data.title).toBe("フロントマターテスト");
     expect(parsed.data.status).toBe("確認待ち");
     expect(parsed.data.priority).toBe("P1");
@@ -184,14 +185,19 @@ describe("TaskCreator", () => {
     expect(parsed.data.assignee).toBe("山田");
   });
 
-  it("case 7: _README.md に次のID がない場合はエラー", async () => {
-    const { creator } = buildEnv({
+  it("case 7 (v0.6.13 案A): _README.md に次のID 行が無くても throw せず採番し行を自己修復する", async () => {
+    // 配布先ユーザーが README を編集して「次のID」行を消した状態。従来はここで
+    // 「次のID が見つかりません」エラーで詰まっていた。案A では実ファイル基準で採番継続。
+    const { files, creator } = buildEnv({
       [README_PATH]: "# タスクボード\n\n次のIDが書かれていない\n",
     });
 
-    await expect(
-      creator.createTask({ title: "エラーテスト", status: "未着手" }),
-    ).rejects.toThrow("次のID");
+    const result = await creator.createTask({ title: "自己修復テスト", status: "未着手" });
+
+    // 実ファイル0件なので K-0001 で採番成功
+    expect(result.newId).toBe("K-0001");
+    // README に「次のID: **K-0002**」行が挿入されている（自己修復）
+    expect(files[README_PATH]).toMatch(/次のID:\s*\*\*K-0002\*\*/);
   });
 
   it("case 8: 空 title で reject", async () => {
@@ -344,5 +350,46 @@ describe("TaskCreator", () => {
     expect(result.createdTask.filePath).toContain("K-10001-");
     // TaskFrontmatterSchema で parse 済みのはずなので contentHash が存在する
     expect(result.createdTask.contentHash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("case 15 (v0.6.13 案A): 最大IDタスクを削除した後は番号を使い回す（実ファイル基準採番）", async () => {
+    // K-0005 まで存在 → 最大 K-0005 を消した状態を「K-0004 までの実ファイル + README=K-0006」で再現。
+    // 案A は README(K-0006) を無視し実ファイル最大(K-0004)+1 = K-0005 を採番する。
+    const { files, creator } = buildEnv({
+      [README_PATH]: makeReadme(6),
+      [`${TASKS_DIR}/K-0003-foo.md`]: "dummy",
+      [`${TASKS_DIR}/K-0004-bar.md`]: "dummy",
+    });
+
+    const result = await creator.createTask({ title: "使い回し", status: "未着手" });
+
+    expect(result.newId).toBe("K-0005");
+    expect(files[README_PATH]).toContain("K-0006");
+  });
+
+  it("case 16 (v0.6.13 案A): 途中のタスクを削除して欠番があっても最大+1で採番しエラーにならない", async () => {
+    // K-0001 と K-0003 が存在、K-0002 は削除済み（欠番）。案A は最大(K-0003)+1 = K-0004。
+    const { creator } = buildEnv({
+      [`${TASKS_DIR}/K-0001-a.md`]: "dummy",
+      [`${TASKS_DIR}/K-0003-c.md`]: "dummy",
+    });
+
+    const result = await creator.createTask({ title: "欠番あり", status: "未着手" });
+
+    expect(result.newId).toBe("K-0004");
+  });
+
+  it("case 17 (v0.6.13 案A): _archive 配下のタスクとも ID 衝突しない（vault 全体を走査）", async () => {
+    // top-level は K-0002 までだが、_archive に退避した K-0009 がある。
+    // adapter.list（top-level のみ）だと K-0003 を採番して将来 _archive と衝突するが、
+    // 案A は getMarkdownFiles で _archive も見るので最大(K-0009)+1 = K-0010 を採番する。
+    const { creator } = buildEnv({
+      [`${TASKS_DIR}/K-0002-top.md`]: "dummy",
+      [`${TASKS_DIR}/_archive/2026-05/K-0009-archived.md`]: "dummy",
+    });
+
+    const result = await creator.createTask({ title: "アーカイブ衝突回避", status: "未着手" });
+
+    expect(result.newId).toBe("K-0010");
   });
 });

@@ -9,7 +9,7 @@ import { sha256, ConflictError } from "./ContentHash";
 import type { SelfWriteTracker } from "./SelfWriteTracker";
 import type { WriteJournal } from "./WriteJournal";
 import type { OperationHistory } from "./OperationHistory";
-import { ensureTasksFolder } from "./EnsureTasksFolder";
+import { ensureTasksFolder, upsertReadmeNextId } from "./EnsureTasksFolder";
 
 /**
  * 定期タスクの「今回分を完了」処理。
@@ -35,9 +35,11 @@ export interface SpawnResult {
   newDue: string;
 }
 
-const NEXT_ID_RE = /次のID:\s*\*\*K-(\d{4})\*\*/;
-const FILE_NAME_RE = /^K-(\d{4})-(.+)\.md$/;
-const ID_PREFIX_RE = /^K-(\d{4})/;
+// v0.6.13: 4 桁固定だと K-10000 以降を取りこぼすため `\d{4,}` で 4 桁以上を許容（TaskCreator と統一）。
+const FILE_NAME_RE = /^K-(\d{4,})-(.+)\.md$/;
+// v0.6.13: TaskCreator.TASK_ID_FILE_RE / DuplicateIdRepair.TASK_ID_FILE_RE と同一のアンカー形に統一。
+// 旧 `/^K-(\d{4,})/`（未アンカー）は `.md` を要求せず採番パス間で ID 集合がズレる恐れがあった。
+const ID_PREFIX_RE = /^K-(\d{4,})(?:[-_].*)?\.md$/;
 
 export class RecurrenceSpawner {
   constructor(
@@ -107,18 +109,15 @@ export class RecurrenceSpawner {
         if (Number.isNaN(base.getTime())) return null;
         const newDue = nextDueDate(rec, base);
 
-        // 2. _README.md から次の ID を取得
+        // 2. _README.md を読み込む（書き戻し用。採番には使わない = 案A）
         const readmeFile = this.getTFile(readmePath);
         const readmeText = await this.app.vault.read(readmeFile);
-        const m = readmeText.match(NEXT_ID_RE);
-        if (!m) {
-          throw new Error("[recurrence] _README.md の次のID が見つかりません");
-        }
-        let next = parseInt(m[1]!, 10);
 
-        // 3. vault 内既存 K-NNNN を全てスキャンして衝突しない ID を採番
+        // 3. 案A (v0.6.13): 採番の真実は実在 ID の最大 +1。README 行が壊れていても throw しない。
+        // vault 内既存 K-NNNN を全てスキャンして最大値 +1 を起点に、衝突しない ID を採番
         // (codex Major: slug 違いの同 K-NNNN との ID 重複を防ぐ)
-        const existingIds = await this.collectExistingIds();
+        const { ids: existingIds, max: maxExistingNum } = await this.collectExistingIds();
+        let next = maxExistingNum + 1;
         const slug = this.extractSlug(source.filePath) ?? "recurring";
         let candidateId: string;
         let candidatePath: string;
@@ -161,10 +160,7 @@ export class RecurrenceSpawner {
             newDue,
             completedAt,
           );
-          const updatedReadme = readmeText.replace(
-            NEXT_ID_RE,
-            `次のID: **K-${String(next + 1).padStart(4, "0")}**`,
-          );
+          const updatedReadme = upsertReadmeNextId(readmeText, next + 1);
           await this.app.vault.modify(readmeFile, updatedReadme);
         } catch (e) {
           // 補償削除: 履歴ファイルを巻き戻す
@@ -243,15 +239,19 @@ export class RecurrenceSpawner {
    * tasksDir 配下の全 K-NNNN ID を収集 (slug 違いでの ID 重複検出用)。
    * _archive 配下は除外しない（vault 全体で ID 一意を保つ）。
    */
-  private async collectExistingIds(): Promise<Set<string>> {
+  private async collectExistingIds(): Promise<{ ids: Set<string>; max: number }> {
     const ids = new Set<string>();
+    let max = 0;
     const files = this.app.vault.getMarkdownFiles();
     for (const f of files) {
       const name = f.path.split("/").pop() ?? "";
       const m = name.match(ID_PREFIX_RE);
-      if (m) ids.add(`K-${m[1]}`);
+      if (!m) continue;
+      ids.add(`K-${m[1]}`);
+      const n = parseInt(m[1]!, 10);
+      if (n > max) max = n;
     }
-    return ids;
+    return { ids, max };
   }
 
   private async updateParentTask(
