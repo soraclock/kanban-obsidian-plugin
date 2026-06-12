@@ -412,6 +412,12 @@ export function DetailPane({ ctx }: { ctx: PluginContext }) {
 
   const onSave = async (): Promise<void> => {
     if (!task) return;
+    // title は schema 必須 (min 1)。空のまま保存すると frontmatter に title: "" が
+    // 書かれ、schema audit エラー + ボードからタスクが消える (v0.6.14 で修正)
+    if (form.title.trim() === "") {
+      new Notice("タイトルを入力してください");
+      return;
+    }
     if (form.due !== "" && !DATE_INPUT_RE.test(form.due)) {
       new Notice("期限は YYYY/MM/DD 形式で入力してください");
       return;

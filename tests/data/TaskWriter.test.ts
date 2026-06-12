@@ -97,6 +97,19 @@ describe("sanitizeFrontmatterPatch (Phase 3)", () => {
     expect(sanitizeFrontmatterPatch({ order: Number.POSITIVE_INFINITY })).toEqual({});
     expect(sanitizeFrontmatterPatch({ order: Number.NaN })).toEqual({});
   });
+
+  // v0.6.14: title: "" が書かれると schema audit エラー + ボードから消えるバグの再発防止
+  it("drops empty / whitespace-only title (schema requires min 1)", () => {
+    expect(sanitizeFrontmatterPatch({ title: "" })).toEqual({});
+    expect(sanitizeFrontmatterPatch({ title: "   " })).toEqual({});
+    expect(sanitizeFrontmatterPatch({ title: "\t\n" })).toEqual({});
+  });
+
+  it("keeps non-empty title and allows empty assignee", () => {
+    expect(sanitizeFrontmatterPatch({ title: "NDA" })).toEqual({ title: "NDA" });
+    // assignee は schema 上 min(1) 制約がないため空文字を許容する (現行仕様)
+    expect(sanitizeFrontmatterPatch({ assignee: "" })).toEqual({ assignee: "" });
+  });
 });
 
 describe("splitFrontmatterAndBody (Phase 3)", () => {

@@ -600,6 +600,9 @@ export function sanitizeFrontmatterPatch(
       if (typeof v !== "string") continue;
       // DoS 防御: 最大 2048 文字を超えたら drop
       if (v.length > 2048) continue;
+      // title は schema 必須 (min 1)。空・空白のみは drop
+      // (frontmatter に title: "" が書かれると schema audit エラー + ボードから消える)
+      if (k === "title" && v.trim().length === 0) continue;
     } else if (k === "order") {
       if (typeof v !== "number" || !Number.isFinite(v)) continue;
     } else if (k === "estimateHours" || k === "actualHours") {
